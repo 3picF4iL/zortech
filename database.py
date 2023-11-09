@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from misc import LANG
 
 
 class Database:
@@ -10,124 +11,60 @@ class Database:
         :param db:  Path to database file.
         """
         # Variables initialization
+        self.db = db
         self.connection = None
         self.cursor = None
-        self.db = db
 
-        # Tables initialization
-        # E.g. self.tables = {
-        #                       "users": {
-        #                          "key": "value",
-        #                          (...),
-        #                          "key": "value",
-        #                           },
-        #                       "posts": {
-        #                          "key": "value",
-        #                          (...),
-        #                          "key": "value",
-        #                           }
-        #                    }
+        self.lang = 'en'
+
         self.tables = {}
-        # Initialize methods
-        if not self._init_database_exists():
-            self.create_database()
-        self.connect_to_database()
-        self.tables_description_update()
 
-    def tables_description_update(self):
-        """
-        Update tables description.
-        :return:  True if tables description was updated, False if not.
-        """
-        print(f"\n======\n* Updating tables description...")
-        try:
-            tables = self.run_command_with_output("SELECT name FROM sqlite_master WHERE type='table';")
-            for table in tables:
-                columns = self.run_command_with_output(f"PRAGMA table_info({table[0]});")
-                self.tables[table[0]] = {}
-                for column in columns:
-                    self.tables[table[0]][column[1]] = column[2]
-            return True
-        except Exception as e:
-            print(f"ERROR: {e}")
-            return False
+        if not self._connect_to_database():
+            print(f"Cannot connect to database {self.db}...")
+            exit(1)
+        self._update_tables_description()
 
-    def _init_database_exists(self):
-        """
-        Check if database exists.
-        :return:  True if database exists, False if not.
-        """
-        try:
-            open(self.db)
-            print(f"* Database {self.db} exists...")
-            return True
-        except Exception as e:
-            print(f"* Database {self.db} does not exist...")
-            return False
+    def __del__(self):
+        self._close_connection()
 
-    def create_database(self):
-        """
-        Create database file.
-        :return:  True if database was created, False if not.
-        """
-        print(f"* Creating database {self.db}...")
-        try:
-            open(self.db, "w")
-        except Exception as e:
-            print(f"ERROR: {e}")
+    def _update_tables_description(self):
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        self.tables = {table[0]: {} for table in self.cursor.fetchall()}
+        for table in self.tables.keys():
+            self.cursor.execute(f"PRAGMA table_info({table});")
+            self.tables[table] = {info[1]: info[2] for info in self.cursor.fetchall()}
 
-        finally:
-            # Check if finally database exists
-            if os.path.exists(self.db):
-                print("* Database created...")
-                return True
-            else:
-                print("* Database not created...")
-                return False
+    def _create_placeholder(self, values):
+        """
+        Create placeholder for SQL command. E.g. ("John", "Smith") -> (?, ?)
+        :param values:  Values to create placeholder.
+        :return:  Placeholder. E.g. ?, ?, ?
+        """
+        return ', '.join(['?' for _ in values])  # Create placeholders for values (?,?,?)
 
-    def connect_to_database(self):
+    def _connect_to_database(self):
         """
         Connect to database.
-        :return:  True if connection was initialized, False if not.
+        :return:  True if connection was established, False if not.
         """
-        print(f"\n======\n* Connecting to database {self.db}...")
+        print(f"* Connecting to database {self.db}...")
         try:
-            if not self._connection_state():
-                self.connection = sqlite3.connect(self.db)
-                self.cursor = self.connection.cursor()
-                print("* Connection to database initialized...")
-            else:
-                print("* Connection to database already initialized...")
+            self.connection = sqlite3.connect(self.db)
+            self.cursor = self.connection.cursor()
+            print("* Connection to database initialized...")
             return True
-        except Exception as e:
-            print(f"Cant connect to database {self.db}, error {e}...")
-            return False
+        except sqlite3.Error as e:
+            print(f"Cannot connect to database {self.db}, error {e}...")
 
-    def close_connection(self):
-        try:
-            print(f"\n======\n* Closing connection to database {self.db}...")
+        return False
+
+    def _close_connection(self):
+        if self.cursor:
             self.cursor.close()
+        if self.connection:
             self.connection.close()
-        except Exception as e:
-            print(f"ERROR: {e}")
 
-    def _reconnect_to_database(self):
-        """
-        Reconnect to database
-        """
-        print(f"\n======\n* Reconnecting to database {self.db}...")
-        if self._connection_state():
-            self.close_connection()
-
-        self.connect_to_database()
-        return self._connection_state()
-
-    def _connection_state(self):
-        """
-        Check if connection and cursor are not None.
-        :return:  True if connection and cursor are not None, False if not.
-        """
-        return self.connection is not None and self.cursor is not None
+        print("* Connection to database closed...")
 
     def check_if_table_exists(self, table_name):
         """
@@ -137,57 +74,176 @@ class Database:
         :param table_name:  Table name.
         :return:  True if table exists, False if not.
         """
-        if not self._connection_state():
-            self._reconnect_to_database()
-        try:
-            self.cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
-            return self.cursor.fetchone() is not None
-        except Exception as e:
-            print(f"ERROR: {e}")
-            return False
+        return table_name in self.tables.keys()
 
-    def run_command(self, command):
+    def run_command(self, command, params=()):
         """
         Run command in database. Command must be passed as string.
-        E.g. run_command("SELECT * FROM users")
-             run_command("SELECT * FROM users WHERE id=%s", 1)
-
-        :param command:  Command to run.
-        :param values:  Values to pass to command.
-        :param table_name:  Table name.
+        :param command:  Command to run. E.g. "INSERT INTO users VALUES (?, ?)"
+        :param params:  Parameters for command. E.g. ("John", "Smith")
         :return:  True if command was run, False if not.
         """
-        print(f"\n======\n* Running command {command}...")
-        if not self._connection_state():
-            self._reconnect_to_database()
+        print(f"* Running command {command}...")
         try:
-            self.cursor.execute(command)
-            self.connection.commit()
-        except Exception as e:
+            with self.connection:
+                self.cursor.execute(command, params)
+            print("Success")
+            return True
+        except sqlite3.Error as e:
             print(f"Error while running command {command}, error {e}...")
             return False
 
-        print("Success")
-        return True
+    def fetch_all(self, table, columns='*', where=None):
+        query = f"SELECT {columns} FROM {table}"
+        if where:
+            query += f" WHERE {where}"
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
 
-    def run_command_with_output(self, command):
-        """
-        Run command in database. Command must be passed as string.
-        E.g. run_command("SELECT * FROM users")
-        :param command:
-        :return:  List of tuples with results of command.
-        """
-        print(f"\n======\n* Running command {command}...")
-        if not self._connection_state():
-            self._reconnect_to_database()
-        try:
-            self.cursor.execute(command)
-            print("Success")
-            return self.cursor.fetchall()
-        except Exception as e:
-            print(f"ERROR: {e}")
-            return None
+    def fetch_all_join(self, table, columns='*', join=None, where=None):
+        query = f"SELECT {columns} FROM {table}"
+        if join:
+            query += f" JOIN {join}"
+        if where:
+            query += f" WHERE {where}"
+        self.cursor.execute(query)
+        out = self.cursor.fetchall()
+        return out
 
+    def fetch_brands(self):
+        return self.fetch_all('brands', 'brandid, brandname')
+
+    def fetch_colors(self):
+        return self.fetch_all('colors', 'colorid, colorname')
+
+    def fetch_models(self):
+        return self.fetch_all_join('models', 'modelid, modelname, brandname', 'brands', 'models.brandid = brands.brandid')
+
+    def fetch_customers(self):
+        return self.fetch_all('customers', 'id, firstname, lastname, phone, email')
+
+    def check_if_customer_exists(self, customer_data):
+        query = "SELECT customerid FROM customers WHERE lastname = ? AND phone = ?"
+        self.cursor.execute(query, (customer_data['lastname'], customer_data['phone']))
+        return self.cursor.fetchone()
+
+    def check_if_car_exists(self, car_data):
+        query = "SELECT carid FROM cars WHERE customerid = ? AND brandid = ? AND modelid = ? AND year = ?"
+        self.cursor.execute(query, (car_data['customerid'], car_data['brandid'], car_data['modelid'], car_data['year']))
+        return self.cursor.fetchone()
+
+    def update_customer(self, customer_data):
+        set_clause = ', '.join([f"{column} = ?" for column in customer_data])
+        values = tuple(customer_data.values()) + (customer_data['id'],)
+        query = f"UPDATE customers SET {set_clause} WHERE id = ?"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+
+    def add_customer(self, customer_data):
+        columns = ', '.join(customer_data.keys())
+        placeholders = ', '.join(['?'] * len(customer_data))
+        values = tuple(customer_data.values())
+        query = f"INSERT INTO customers ({columns}) VALUES ({placeholders})"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def add_brand(self, brand_data):
+        columns = ', '.join(brand_data.keys())
+        placeholders = ', '.join(['?'] * len(brand_data))
+        values = tuple(brand_data.values())
+        query = f"INSERT INTO brands ({columns}) VALUES ({placeholders})"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def add_model(self, model_data):
+        columns = ', '.join(model_data.keys())
+        placeholders = ', '.join(['?'] * len(model_data))
+        values = tuple(model_data.values())
+        query = f"INSERT INTO models ({columns}) VALUES ({placeholders})"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def add_car(self, car_data):
+        columns = ', '.join(car_data.keys())
+        placeholders = ', '.join(['?'] * len(car_data))
+        values = tuple(car_data.values())
+        query = f"INSERT INTO cars ({columns}) VALUES ({placeholders})"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def add_color(self, color):
+        query = "INSERT INTO colors (colorname) VALUES (?)"
+        # Translate color name to english and lowercase
+        color = self._lang(color).lower()
+        self.cursor.execute(query, (color,))
+        return self.cursor.lastrowid
+
+    def add_ticket(self, ticket_data):
+        columns = ', '.join(ticket_data.keys())
+        placeholders = ', '.join(['?'] * len(ticket_data))
+        values = tuple(ticket_data.values())
+        query = f"INSERT INTO tickets ({columns}) VALUES ({placeholders})"
+        self.cursor.execute(query, values)
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def get_ticket_data(self, ticket_id):
+        query = "SELECT * FROM tickets WHERE ticketid = ?"
+        self.cursor.execute(query, (ticket_id,))
+        return self.cursor.fetchone()
+
+    def get_tickets_details(self):
+        query = """
+        SELECT 
+            t.ticketid AS TicketID,
+            t.date AS TicketDate,
+            cu.firstname AS CustomerFirstName,
+            cu.lastname AS CustomerLastName,
+            cu.phone AS CustomerPhone,
+            b.brandname AS BrandName,
+            m.modelname AS ModelName,
+            ca.year AS CarYear,
+            t.notes AS TicketNotes
+        FROM 
+            tickets AS t
+        JOIN 
+            customers AS cu ON t.customerid = cu.customerid
+        JOIN 
+            cars AS ca ON t.carid = ca.carid
+        JOIN 
+            brands AS b ON ca.brandid = b.brandid
+        JOIN 
+            models AS m ON ca.modelid = m.modelid;
+        """
+
+        self.cursor.execute(query)
+        rows = self.cursor.fetchall()
+        print(rows)
+        ticket_details = []
+        for row in rows:
+            details = {
+                    'ticketid': row[0],
+                    'date': row[1],
+                    'customer': {
+                        'firstname': row[2], 'lastname': row[3], 'phone': row[4]
+                    },
+                    'car': {
+                        'brandname': row[5], 'modelname': row[6], 'year': row[7]
+                    },
+                    'notes': row[8]
+            }
+            ticket_details.append(details)
+        return ticket_details
+
+    def _lang(self, expression):
+        return LANG[self.lang].get(expression, expression)
+
+
+class AddidionalFunctions:
     def create_table(self, table_name, columns):
         """
         Create table in database. Table name and columns must be passed as string.
@@ -197,7 +253,8 @@ class Database:
         :param columns:  Columns with types. E.g. "id INTEGER PRIMARY KEY, name TEXT, age INTEGER"
         :return:  True if table was created, False if not.
         """
-        rc = self.run_command(f"CREATE TABLE {table_name} ({columns})")
+        placeholder = ", ".join(["?"] * len(columns.split(",")))
+        rc = self.run_command(f"INSERT INTO {table_name} VALUES ({placeholder})", columns.split(","))
         self.tables_description_update()
         return rc
 
@@ -215,126 +272,14 @@ class Database:
         self.tables_description_update()
         return rc
 
-    def check_if_column_exists(self, table_name, column_name):
+    def delete_table(self, table_name):
         """
-        Check if column exists in table. Table name and column name must be passed as string.
-        E.g. check_if_column_exists("users", "name")
+        Delete table in database. Table name must be passed as string.
+        E.g. delete_table("users")
 
         :param table_name:  Table name.
-        :param column_name:  Column name.
-        :return:  True if column exists, False if not.
+        :return:  True if table was deleted, False if not.
         """
-        return self.run_command(f"SELECT {column_name} FROM {table_name}")
-
-    def add_entry(self, table_name, columns, values):
-        """
-        Add entry to table. Table name, columns and values must be passed as string.
-        E.g. add_entry("users", "name, age", "'John', 20")
-
-        :param table_name:  Table name.
-        :param columns:  Columns. E.g. "name, age"
-        :param values:  Values. E.g. "'John', 20"
-        :return:  True if entry was added, False if not.
-        """
-
-        return self.run_command(f"INSERT INTO {table_name} ({columns}) VALUES ({values})")
-
-    def edit_value(self, table_name, column, value, where):
-        """
-        Edit value in table. Table name, column, value and where must be passed as string.
-        E.g. edit_value("users", "name", "'John'", "id=1")
-
-        :param table_name:  Table name.
-        :param column:  Column. E.g. "name"
-        :param value:  Value to set (change). E.g. "'John'"
-        :param where:  Where. E.g. "id=1"
-        :return:  True if value was edited, False if not.
-        """
-
-        return self.run_command(f"UPDATE {table_name} SET {column}={value} WHERE {where}")
-
-    def delete_entry(self, table_name, where):
-        """
-        Delete entry from table. Table name and where must be passed as string.
-        E.g. delete_entry("users", "id=1")
-
-        :param table_name:  Table name.
-        :param where:  Where. E.g. "id=1"
-        :return:  True if entry was deleted, False if not.
-        """
-        return self.run_command(f"DELETE FROM {table_name} WHERE {where}")
-
-    def get_entry(self, table_name, columns, where):
-        """
-        Get entry from table. Table name, columns and where must be passed as string.
-        E.g. get_entry("users", "name, age", "id=1")
-
-        :param table_name:  Table name.
-        :param columns:  Columns. E.g. "name, age"
-        :param where:  Where. E.g. "id=1"
-        :return:  Entry if it exists, None if not.
-        """
-        return self.run_command_with_output(f"SELECT {columns} FROM {table_name} WHERE {where}")
-
-    def get_all_entries(self, table_name):
-        """
-        Get all entries from table. Table name and columns must be passed as string.
-        E.g. get_all_entries("users", "name, age")
-
-        :param table_name:  Table name.
-        :param columns:  Columns. E.g. "name, age"
-        :return:  Entries if they exist, None if not.
-        """
-        return self.run_command_with_output(f"SELECT * FROM {table_name}")
-
-
-class TestDataBase:
-    def __init__(self, db="TestDataBase.db"):
-        self.db = Database(db)
-
-    def clear_data(self):
-        self.db.run_command("DROP TABLE users")
-        self.db.run_command("DROP TABLE cars")
-
-    def prepare_data(self):
-        self.clear_data()
-        self.db.create_table("users", "id INTEGER PRIMARY KEY, name TEXT, age INTEGER")
-        self.db.create_table("cars", "id INTEGER PRIMARY KEY, brand TEXT, model TEXT, year INTEGER")
-        self.db.add_entry("users", "name, age", "'John', 20")
-        self.db.add_entry("users", "name, age", "'Adam', 25")
-
-    def run_tests(self):
-        print(self.db.get_all_entries("users"))
-        print(self.db.get_entry("users", "*", "id=1"))
-        assert self.db.edit_value("users", "name", "'Adam'", "id=1") is True
-        print(self.db.get_entry("users", "*", "id=1"))
-        assert self.db.delete_entry("users", "id=1") is True
-        print(self.db.get_all_entries("users"))
-        assert self.db.check_if_column_exists("users", "name") is True
-        assert self.db.check_if_column_exists("users", "surname") is False
-        assert self.db.edit_table("users", "surname TEXT") is True
-        assert self.db.check_if_column_exists("users", "surname") is True
-        assert self.db.add_entry("users", "name, age, surname", "'John', 20, 'Smith'") is True
-        print(self.db.get_entry("users", "*", "name='John'"))
-        assert self.db.get_entry("users", "*", "name='John'") is not None
-        print(self.db.get_all_entries("users"))
-        assert self.db.delete_entry("users", "name='John'") is True
-        print(self.db.get_all_entries("users"))
-        print(self.db.tables)
-        return True
-
-    def run(self):
-        self.prepare_data()
-        if self.run_tests():
-            print("========\nTests passed")
-            if os.path.exists(self.db.db):
-                self.db.close_connection()
-                os.remove(self.db.db)
-
-
-# if __name__ == "__main__":
-#     # test = TestDataBase()
-#     # test.run()
-#     db = Database("service.db")
-#     print(db.tables)
-#     print(db.get_all_entries("tickets"))
+        rc = self.run_command(f"DROP TABLE {table_name}")
+        self.tables_description_update()
+        return rc
