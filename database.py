@@ -139,57 +139,25 @@ class Database:
         self.cursor.execute(query, values)
         self.connection.commit()
 
-    def add_customer(self, customer_data):
-        columns = ', '.join(customer_data.keys())
-        placeholders = ', '.join(['?'] * len(customer_data))
-        values = tuple(customer_data.values())
-        query = f"INSERT INTO customers ({columns}) VALUES ({placeholders})"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-        return self.cursor.lastrowid
+    def add_item_to_table(self, table_name, item_data):
+        """
+        Add item to specified table.
+        :param table_name: Name of the table to add items to.
+        :param item_data: Dictionary of column names and their values to insert.
+        :return: ID of the last row inserted or None if an error occurred.
+        """
+        columns = ', '.join(item_data.keys())
+        placeholders = ', '.join(['?'] * len(item_data))
+        values = tuple(item_data.values())
+        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
 
-    def add_brand(self, brand_data):
-        columns = ', '.join(brand_data.keys())
-        placeholders = ', '.join(['?'] * len(brand_data))
-        values = tuple(brand_data.values())
-        query = f"INSERT INTO brands ({columns}) VALUES ({placeholders})"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-        return self.cursor.lastrowid
-
-    def add_model(self, model_data):
-        columns = ', '.join(model_data.keys())
-        placeholders = ', '.join(['?'] * len(model_data))
-        values = tuple(model_data.values())
-        query = f"INSERT INTO models ({columns}) VALUES ({placeholders})"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-        return self.cursor.lastrowid
-
-    def add_car(self, car_data):
-        columns = ', '.join(car_data.keys())
-        placeholders = ', '.join(['?'] * len(car_data))
-        values = tuple(car_data.values())
-        query = f"INSERT INTO cars ({columns}) VALUES ({placeholders})"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-        return self.cursor.lastrowid
-
-    def add_color(self, color):
-        query = "INSERT INTO colors (colorname) VALUES (?)"
-        # Translate color name to english and lowercase
-        color = self._lang(color).lower()
-        self.cursor.execute(query, (color,))
-        return self.cursor.lastrowid
-
-    def add_ticket(self, ticket_data):
-        columns = ', '.join(ticket_data.keys())
-        placeholders = ', '.join(['?'] * len(ticket_data))
-        values = tuple(ticket_data.values())
-        query = f"INSERT INTO tickets ({columns}) VALUES ({placeholders})"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-        return self.cursor.lastrowid
+        try:
+            self.cursor.execute(query, values)
+            self.connection.commit()
+            return self.cursor.lastrowid
+        except sqlite3.Error as e:
+            print(f"Error adding item to {table_name}: {e}")
+            return None
 
     def get_ticket_data(self, ticket_id):
         query = "SELECT * FROM tickets WHERE ticketid = ?"
@@ -238,48 +206,3 @@ class Database:
             }
             ticket_details.append(details)
         return ticket_details
-
-    def _lang(self, expression):
-        return LANG[self.lang].get(expression, expression)
-
-
-class AddidionalFunctions:
-    def create_table(self, table_name, columns):
-        """
-        Create table in database. Table name and columns must be passed as string.
-        E.g. create_table("users", "id INTEGER PRIMARY KEY, name TEXT, age INTEGER")
-
-        :param table_name:  Table name.
-        :param columns:  Columns with types. E.g. "id INTEGER PRIMARY KEY, name TEXT, age INTEGER"
-        :return:  True if table was created, False if not.
-        """
-        placeholder = ", ".join(["?"] * len(columns.split(",")))
-        rc = self.run_command(f"INSERT INTO {table_name} VALUES ({placeholder})", columns.split(","))
-        self.tables_description_update()
-        return rc
-
-    def edit_table(self, table_name, columns):
-        """
-        Edit table in database. Table name and columns must be passed as string.
-        E.g. edit_table("users", "id INTEGER PRIMARY KEY, name TEXT, age INTEGER")
-
-        :param table_name:  Table name.
-        :param columns:  Columns with types. E.g. "id INTEGER PRIMARY KEY, name TEXT, age INTEGER"
-        :return:  True if table was edited, False if not.
-        """
-
-        rc = self.run_command(f"ALTER TABLE {table_name} ADD {columns}")
-        self.tables_description_update()
-        return rc
-
-    def delete_table(self, table_name):
-        """
-        Delete table in database. Table name must be passed as string.
-        E.g. delete_table("users")
-
-        :param table_name:  Table name.
-        :return:  True if table was deleted, False if not.
-        """
-        rc = self.run_command(f"DROP TABLE {table_name}")
-        self.tables_description_update()
-        return rc

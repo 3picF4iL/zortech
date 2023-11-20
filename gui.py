@@ -478,16 +478,24 @@ class TicketWindow:
         else:
             print("Customer does not exist")
             print("Creating new customer")
-            ticket['customerid'] = self.database.add_customer(self.data['customer'])
+            ticket['customerid'] = self.database.add_item_to_table('customers', self.data['customer'])
             car['customerid'] = ticket['customerid']
 
         # Add Brand and Model to database if not exists
         if not car['brandid']:
-            car['brandid'] = self.database.add_brand(self.data['car']['brand'])
-            car['modelid'] = self.database.add_model(self.data['car']['model'], car['brandid'])
+            car['brandid'] = self.database.add_item_to_table('brands', self.data['car']['brand'])
+        if not car['modelid']:
+            data = {
+                'brandid': car['brandid'],
+                'modelname': self.data['car']['model']
+            }
+            car['modelid'] = self.database.add_item_to_table('models', data)
 
         if not car['colorid']:
-            car['colorid'] = self.database.add_color(self.data['car']['color'])
+            data = {
+                'colorname': self.data['car']['color']
+            }
+            car['colorid'] = self.database.add_item_to_table('colors', data)
 
         if not car['vin']:
             car['vin'] = ""
@@ -503,11 +511,11 @@ class TicketWindow:
         else:
             print("Car does not exist")
             print("Creating new car")
-            ticket['carid'] = self.database.add_car(car)
+            ticket['carid'] = self.database.add_item_to_table('cars', car)
 
         # Add ticket to database
         print("Creating new ticket")
-        self.database.add_ticket(ticket)
+        self.database.add_item_to_table('tickets', ticket)
         self._close_window()
 
 
