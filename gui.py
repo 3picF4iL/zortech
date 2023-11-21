@@ -3,12 +3,15 @@ from tkinter import messagebox, ttk, filedialog
 from misc import LANG, TICKET_WINDOW_CONFIG, AutocompleteCombobox
 from datetime import datetime
 from json import dumps, loads
+from misc import Logger
+from model import DataProcessor
 
 
 class GUIApp:
-    def __init__(self, config, db):
+    def __init__(self, config):
+        self.logger = Logger.get_logger(self.__class__.__name__)
         self.config = config
-        self.database = db
+        self.processor = DataProcessor()
         self.lang = 'pl'
 
         # Root
@@ -48,7 +51,7 @@ class GUIApp:
         self._init_tree_view()
         self.display_data()
         # Print pretty-like database
-        # print(dumps(self.database.tables, indent=4, sort_keys=False))
+        # print(dumps(self.processor.tables, indent=4, sort_keys=False))
 
     def _init_root(self):
         root = tk.Tk()
@@ -71,7 +74,7 @@ class GUIApp:
         self.tree_view.pack(fill=tk.BOTH, expand=1)
         self.tree_view['columns'] = [
             x
-            for i, x in enumerate(self.database.tables[self.active_tree_view].keys())
+            for i, x in enumerate(self.processor.database.tables[self.active_tree_view].keys())
         ]
 
         self._tree_view_column_format()
@@ -146,9 +149,8 @@ class GUIApp:
 
     def display_data(self):
         self.tree_view.delete(*self.tree_view.get_children())
-        out_data = self.database.get_tickets_details()
+        out_data = self.processor.get_tickets_details()
         out_data.sort(key=lambda x: x['ticketid'], reverse=True)
-        print(dumps(out_data, indent=4))
         for ticket in out_data:
             customer = ticket["customer"]["firstname"] + ' ' + ticket["customer"]["lastname"] + ' ' + ticket["customer"]["phone"]
             car = ticket['car']['brandname'].capitalize() + ' ' + ticket['car']['modelname'] + ' ' + ticket['car']['year']
@@ -159,7 +161,7 @@ class GUIApp:
     def delete_entry(self, event):
         selected_item = self.tree_view.identify_row(event.y)
         if selected_item:
-            self.database.delete_entry(self.active_tree_view, self.tree_view.item(selected_item)['values'][0])
+            self.processor.delete_entry(self.active_tree_view, self.tree_view.item(selected_item)['values'][0])
             self.display_data()
 
     def menu_on_open_file(self):
@@ -180,7 +182,7 @@ class GUIApp:
     def open_new_ticket_window(self):
         self.change_new_ticket_button_state()
         TicketWindow(lang=self.lang,
-                     database=self.database,
+                     database=self.processor,
                      parent=self)
 
     def quit_app(self):
@@ -193,6 +195,7 @@ class GUIApp:
 class TicketWindow:
     def __init__(self, lang, database, parent=None):
         # Date and time with format: YYYY-MM-DD HH:MM:SS
+        self.logger = Logger.get_logger(self.__class__.__name__)
         self.date = datetime.now().strftime('%Y.%m.%d %H:%M:%S')
         self.window_dimension = [290, 600]
         self.window_position = [500, 200]
@@ -201,8 +204,7 @@ class TicketWindow:
         self.main_frame = None
 
         self.lang = lang
-        self.database = database
-        self.database_static_values = None
+        self.processor = database
         self._update_any_data()
 
         self.window_config = TICKET_WINDOW_CONFIG
@@ -216,7 +218,6 @@ class TicketWindow:
         self._setup_main_frame()
         self._build_sections()
         self._fill_data_for_test()
-
 
     # =======================================================================
     # Setup methods
@@ -280,13 +281,13 @@ class TicketWindow:
             # If label_text is color get color list from database
             if label_text == "color":
                 entry = AutocompleteCombobox(section_frame)
-                colors = [self._lang(color[1]).capitalize() for color in self.database_static_values['colors']]
+                colors = [self._lang(color[1]).capitalize() for color in self.processor.static_values['colors']]
                 entry.set_completion_list(colors)
                 entry.set("")
 
             if label_text == "brand":
                 entry = AutocompleteCombobox(section_frame)
-                brands = [brand[1].capitalize() for brand in self.database_static_values['brands']]
+                brands = [brand[1].capitalize() for brand in self.processor.static_values['brands']]
                 entry.set_completion_list(brands)
                 entry.set("")
                 entry.bind("<<ComboboxSelected>>", self._on_brand_select)
@@ -322,12 +323,11 @@ class TicketWindow:
         ttk.Button(button_frame, text=self._lang('cancel'), command=self._close_window).\
             grid(row=0, column=1, sticky='we', padx=5, pady=5)
 
-
     def _on_brand_select(self, event=None):
         combobox = self.window_fields['model']
         selected_brand = self.window_fields['brand'].get()
         try:
-            model_list = [model[1] for model in self.database_static_values['models'][selected_brand.lower()]]
+            model_list = [model[1] for model in self.processor_static_values['models'][selected_brand.lower()]]
         except KeyError:
             model_list = ""
         combobox.set_completion_list(model_list)
@@ -340,30 +340,7 @@ class TicketWindow:
     # =======================================================================
 
     def _update_any_data(self):
-        self._get_static_values_from_database()
-
-    def _get_static_values_from_database(self):
-        # Out from database e.g:
-        # [
-        #   (1, 'Golf', 'volkswagen'),
-        #   (2, 'Polo', 'volkswagen'),
-        #   (15, 'Series 1', 'bmw'),
-        #   (16, 'Series 3', 'bmw'),
-        #   (...)
-        # ]
-        model_pack = {}
-        for model in self.database.fetch_models():
-            if model[2] not in model_pack:
-                model_pack[model[2]] = []
-            # model_pack[brandname] = [[modelid, modelname], [modelid, modelname], ...] e.g.
-            # model_pack['volkswagen'] = [[1, 'Golf'], [2, 'Polo']]
-            model_pack[model[2]].append([model[0], model[1]])
-
-        self.database_static_values = {
-            'brands': self.database.fetch_brands(),
-            'colors': self.database.fetch_colors(),
-            'models': model_pack
-        }
+        self.processor.get_static_values_from_database()
 
     def _fill_data_for_test(self):
         self.window_fields['firstname'].insert(0, "Test")
@@ -380,7 +357,7 @@ class TicketWindow:
     # def _print_static_values(self):
     #     # Print data in the JSON pretty format
     #     import json
-    #     print(json.dumps(self.database_static_values, indent=4))
+    #     print(json.dumps(self.processor_static_values, indent=4))
 
     def _get_data_from_entries(self):
         data = {
@@ -418,34 +395,13 @@ class TicketWindow:
                 pass
         self.data = data
 
-
     # =======================================================================
     # Button events handlers
     # =======================================================================
-    def _save_ticket(self):
-        # Data collection
-        # Data validation
-        # Data conversion
-        # Data saving
-        self._get_data_from_entries()
-        # print(self.data)
-        self._prepare_data_for_saving()
-        #self._validate_customer_data(self.data['customer'])
-        #self._print_static_values()
 
-    def _map_id_to_name(self, name, section):
-        # Get data from self.database_static_values
-        # Return id of given name
-        #self._print_static_values()
-        if section == 'models':
-            for brand in self.database_static_values[section]:
-                for model in self.database_static_values[section][brand]:
-                    if model[1] == name:
-                        return model[0] if model[0] else None
-        if section:
-            for item in self.database_static_values[section]:
-                if item[1] == name.lower():
-                    return item[0] if item[0] else None
+    def _save_ticket(self):
+        self._get_data_from_entries()
+        self._prepare_data_for_saving()
 
     def _prepare_data_for_saving(self):
         # From data collected from entries, prepare data for saving in database
@@ -461,41 +417,41 @@ class TicketWindow:
 
         car = {
             'customerid': None,
-            'brandid': self._map_id_to_name(self.data['car']['brand'], 'brands'),
-            'modelid': self._map_id_to_name(self.data['car']['model'], 'models'),
+            'brandid': self.processor.map_id_to_name(self.data['car']['brand'], 'brands'),
+            'modelid': self.processor.map_id_to_name(self.data['car']['model'], 'models'),
             'year': self.data['car']['year'],
-            'colorid': self._map_id_to_name(self.data['car']['color'], 'colors'),
+            'colorid': self.processor.map_id_to_name(self.data['car']['color'], 'colors'),
             'vin': self.data['car']['vin']
         }
         # Add customer to database if not exists
-        c_id = self.database.check_if_customer_exists(self.data['customer'])
-        print(ticket, car)
+        c_id = self.processor.check_if_customer_exists(self.data['customer'])
+        self.logger.debug(ticket, car)
 
         if c_id:
-            print("Customer exists")
+            self.logger.info("Customer exists")
             ticket['customerid'] = c_id[0]
             car['customerid'] = c_id[0]
         else:
-            print("Customer does not exist")
-            print("Creating new customer")
-            ticket['customerid'] = self.database.add_item_to_table('customers', self.data['customer'])
+            self.logger.info("Customer does not exist")
+            self.logger.info("Creating new customer")
+            ticket['customerid'] = self.processor.add_item_to_table('customers', self.data['customer'])
             car['customerid'] = ticket['customerid']
 
         # Add Brand and Model to database if not exists
         if not car['brandid']:
-            car['brandid'] = self.database.add_item_to_table('brands', self.data['car']['brand'])
+            car['brandid'] = self.processor.add_item_to_table('brands', self.data['car']['brand'])
         if not car['modelid']:
             data = {
                 'brandid': car['brandid'],
                 'modelname': self.data['car']['model']
             }
-            car['modelid'] = self.database.add_item_to_table('models', data)
+            car['modelid'] = self.processor.add_item_to_table('models', data)
 
         if not car['colorid']:
             data = {
                 'colorname': self.data['car']['color']
             }
-            car['colorid'] = self.database.add_item_to_table('colors', data)
+            car['colorid'] = self.processor.add_item_to_table('colors', data)
 
         if not car['vin']:
             car['vin'] = ""
@@ -504,24 +460,23 @@ class TicketWindow:
             car['year'] = ""
 
         # Add car to database if not exists
-        car_id = self.database.check_if_car_exists(car)
+        car_id = self.processor.check_if_car_exists(car)
         if car_id:
-            print("Car exists")
+            self.logger.info("Car exists")
             ticket['carid'] = car_id[0]
         else:
-            print("Car does not exist")
-            print("Creating new car")
-            ticket['carid'] = self.database.add_item_to_table('cars', car)
+            self.logger.info("Car does not exist")
+            self.logger.info("Creating new car")
+            ticket['carid'] = self.processor.add_item_to_table('cars', car)
 
         # Add ticket to database
-        print("Creating new ticket")
-        self.database.add_item_to_table('tickets', ticket)
+        self.logger.info("Creating new ticket")
+        self.processor.add_item_to_table('tickets', ticket)
         self._close_window()
-
 
     def _close_window(self):
         self.parent.change_new_ticket_button_state()
-        self._get_static_values_from_database()
+        self.processor.get_static_values_from_database()
         self.parent.display_data()
         self.top.destroy()
 

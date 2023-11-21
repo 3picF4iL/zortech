@@ -1,6 +1,5 @@
 import sqlite3
-import os
-from misc import LANG
+from misc import Logger
 
 
 class Database:
@@ -11,198 +10,67 @@ class Database:
         :param db:  Path to database file.
         """
         # Variables initialization
+        self.logger = Logger.get_logger(self.__class__.__name__)
         self.db = db
         self.connection = None
         self.cursor = None
-
         self.lang = 'en'
-
         self.tables = {}
 
-        if not self._connect_to_database():
-            print(f"Cannot connect to database {self.db}...")
-            exit(1)
+        self._connect_to_database()
+
         self._update_tables_description()
 
-    def __del__(self):
-        self._close_connection()
+    def close(self):
+        """
+        Close database connection.
+        :return:
+        """
+        try:
+            if self.cursor:
+                self.cursor.close()
+            if self.connection:
+                self.connection.close()
+            self.logger.info("* Connection to database closed...")
+        except sqlite3.Error as e:
+            self.logger.exception(f"Cannot close connection to database {self.db}, error {e}...")
+            raise
 
     def _update_tables_description(self):
+        """
+        Update tables description.
+        :return:
+        """
+        self.logger.info("* Updating tables description...")
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         self.tables = {table[0]: {} for table in self.cursor.fetchall()}
         for table in self.tables.keys():
             self.cursor.execute(f"PRAGMA table_info({table});")
             self.tables[table] = {info[1]: info[2] for info in self.cursor.fetchall()}
 
-    def _create_placeholder(self, values):
-        """
-        Create placeholder for SQL command. E.g. ("John", "Smith") -> (?, ?)
-        :param values:  Values to create placeholder.
-        :return:  Placeholder. E.g. ?, ?, ?
-        """
-        return ', '.join(['?' for _ in values])  # Create placeholders for values (?,?,?)
-
     def _connect_to_database(self):
         """
         Connect to database.
         :return:  True if connection was established, False if not.
         """
-        print(f"* Connecting to database {self.db}...")
+        self.logger.info(f"* Connecting to database {self.db}...")
         try:
             self.connection = sqlite3.connect(self.db)
             self.cursor = self.connection.cursor()
-            print("* Connection to database initialized...")
-            return True
+            self.logger.info("* Connection to database initialized...")
         except sqlite3.Error as e:
-            print(f"Cannot connect to database {self.db}, error {e}...")
+            self.logger.exception(f"Cannot connect to database {self.db}, error {e}...")
+            raise
 
-        return False
-
-    def _close_connection(self):
-        if self.cursor:
-            self.cursor.close()
-        if self.connection:
-            self.connection.close()
-
-        print("* Connection to database closed...")
-
-    def check_if_table_exists(self, table_name):
+    def execute_query(self, query):
         """
-        Check if table exists in database. Table name must be passed as string.
-        E.g. check_if_table_exists("users")
-
-        :param table_name:  Table name.
-        :return:  True if table exists, False if not.
+        Execute query and fetch results.
+        :param query:
+        :return:
         """
-        return table_name in self.tables.keys()
-
-    def run_command(self, command, params=()):
-        """
-        Run command in database. Command must be passed as string.
-        :param command:  Command to run. E.g. "INSERT INTO users VALUES (?, ?)"
-        :param params:  Parameters for command. E.g. ("John", "Smith")
-        :return:  True if command was run, False if not.
-        """
-        print(f"* Running command {command}...")
-        try:
-            with self.connection:
-                self.cursor.execute(command, params)
-            print("Success")
-            return True
-        except sqlite3.Error as e:
-            print(f"Error while running command {command}, error {e}...")
-            return False
-
-    def fetch_all(self, table, columns='*', where=None):
-        query = f"SELECT {columns} FROM {table}"
-        if where:
-            query += f" WHERE {where}"
+        if not query:
+            self.logger.warning("Query is empty...")
+            return None
+        self.logger.debug(f"* Executing query: {query}")
         self.cursor.execute(query)
         return self.cursor.fetchall()
-
-    def fetch_all_join(self, table, columns='*', join=None, where=None):
-        query = f"SELECT {columns} FROM {table}"
-        if join:
-            query += f" JOIN {join}"
-        if where:
-            query += f" WHERE {where}"
-        self.cursor.execute(query)
-        out = self.cursor.fetchall()
-        return out
-
-    def fetch_brands(self):
-        return self.fetch_all('brands', 'brandid, brandname')
-
-    def fetch_colors(self):
-        return self.fetch_all('colors', 'colorid, colorname')
-
-    def fetch_models(self):
-        return self.fetch_all_join('models', 'modelid, modelname, brandname', 'brands', 'models.brandid = brands.brandid')
-
-    def fetch_customers(self):
-        return self.fetch_all('customers', 'id, firstname, lastname, phone, email')
-
-    def check_if_customer_exists(self, customer_data):
-        query = "SELECT customerid FROM customers WHERE lastname = ? AND phone = ?"
-        self.cursor.execute(query, (customer_data['lastname'], customer_data['phone']))
-        return self.cursor.fetchone()
-
-    def check_if_car_exists(self, car_data):
-        query = "SELECT carid FROM cars WHERE customerid = ? AND brandid = ? AND modelid = ? AND year = ?"
-        self.cursor.execute(query, (car_data['customerid'], car_data['brandid'], car_data['modelid'], car_data['year']))
-        return self.cursor.fetchone()
-
-    def update_customer(self, customer_data):
-        set_clause = ', '.join([f"{column} = ?" for column in customer_data])
-        values = tuple(customer_data.values()) + (customer_data['id'],)
-        query = f"UPDATE customers SET {set_clause} WHERE id = ?"
-        self.cursor.execute(query, values)
-        self.connection.commit()
-
-    def add_item_to_table(self, table_name, item_data):
-        """
-        Add item to specified table.
-        :param table_name: Name of the table to add items to.
-        :param item_data: Dictionary of column names and their values to insert.
-        :return: ID of the last row inserted or None if an error occurred.
-        """
-        columns = ', '.join(item_data.keys())
-        placeholders = ', '.join(['?'] * len(item_data))
-        values = tuple(item_data.values())
-        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-
-        try:
-            self.cursor.execute(query, values)
-            self.connection.commit()
-            return self.cursor.lastrowid
-        except sqlite3.Error as e:
-            print(f"Error adding item to {table_name}: {e}")
-            return None
-
-    def get_ticket_data(self, ticket_id):
-        query = "SELECT * FROM tickets WHERE ticketid = ?"
-        self.cursor.execute(query, (ticket_id,))
-        return self.cursor.fetchone()
-
-    def get_tickets_details(self):
-        query = """
-        SELECT 
-            t.ticketid AS TicketID,
-            t.date AS TicketDate,
-            cu.firstname AS CustomerFirstName,
-            cu.lastname AS CustomerLastName,
-            cu.phone AS CustomerPhone,
-            b.brandname AS BrandName,
-            m.modelname AS ModelName,
-            ca.year AS CarYear,
-            t.notes AS TicketNotes
-        FROM 
-            tickets AS t
-        JOIN 
-            customers AS cu ON t.customerid = cu.customerid
-        JOIN 
-            cars AS ca ON t.carid = ca.carid
-        JOIN 
-            brands AS b ON ca.brandid = b.brandid
-        JOIN 
-            models AS m ON ca.modelid = m.modelid;
-        """
-
-        self.cursor.execute(query)
-        rows = self.cursor.fetchall()
-        print(rows)
-        ticket_details = []
-        for row in rows:
-            details = {
-                    'ticketid': row[0],
-                    'date': row[1],
-                    'customer': {
-                        'firstname': row[2], 'lastname': row[3], 'phone': row[4]
-                    },
-                    'car': {
-                        'brandname': row[5], 'modelname': row[6], 'year': row[7]
-                    },
-                    'notes': row[8]
-            }
-            ticket_details.append(details)
-        return ticket_details

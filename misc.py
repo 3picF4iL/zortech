@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk
 
@@ -148,6 +149,7 @@ APP_CONFIG = {
             "author_email": "",
             "title": "ZORTECH Serwis Klimatyzacji Samochodowej",
             "geometry": "800x600",
+            "lang": "pl",
 }
 
 
@@ -205,3 +207,29 @@ class AutocompleteCombobox(ttk.Combobox):
             self.autocomplete()
         # No need for up/down, we'll jump to the popup
         # list at the position of the autocompletion
+
+import logging
+
+class Logger:
+    @staticmethod
+    def setup_logging():
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+
+        file_handler = logging.FileHandler('zortechapp.log')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
+        console_handler.setFormatter(formatter)
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+
+        root_logger.propagate = False
+
+    @staticmethod
+    def get_logger(name):
+        return logging.getLogger(name)
