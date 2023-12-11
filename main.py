@@ -1,5 +1,5 @@
-from gui import GUIApp
-from misc import APP_CONFIG, Logger
+from gui import MainGUI
+from misc import Logger
 
 Logger.setup_logging()
 
@@ -9,11 +9,11 @@ class MainApplication:
         # Create main window (layout/GUI)
         # Connect to database and fetch data
         # Use data to populate treeview
-        self.app_config = APP_CONFIG
-        self.gui = GUIApp(self.app_config)
+        self.gui = MainGUI()
 
 
-main = MainApplication()
+if __name__ == '__main__':
+    main = MainApplication()
 
 
 

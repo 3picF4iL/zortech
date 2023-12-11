@@ -1,16 +1,16 @@
 import sqlite3
-from misc import Logger
+from misc import Entity
 
 
-class Database:
+class Database(Entity):
     def __init__(self, db):
+        super().__init__()
         """
         Initialize database connection and cursor.
         E.g. database = Database("database.db")
         :param db:  Path to database file.
         """
         # Variables initialization
-        self.logger = Logger.get_logger(self.__class__.__name__)
         self.db = db
         self.connection = None
         self.cursor = None
