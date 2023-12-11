@@ -70,6 +70,8 @@ class Treeview(Entity):
             for row in data:
                 self.logger.debug(f"\t\tInserting row {row}...")
                 self.treeview.insert('', tk.END, values=row)
+        else:
+            self.logger.debug("\t\tNo data to populate treeview...")
 
     def clear_treeview(self):
         self.logger.debug("\tClearing treeview...")

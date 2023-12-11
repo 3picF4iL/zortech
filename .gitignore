@@ -1,2 +1,4 @@
 .idea/
-service.db
+__pycache__/
+zortech_sqlite.db
+zortechapp.log

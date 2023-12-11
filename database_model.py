@@ -52,9 +52,9 @@ class DBProcessor(Entity):
     def fetch_models(self):
         return self.fetch_all_join('models', 'modelid, modelname, brandname', 'brands', 'models.brandid = brands.brandid')
 
-    def fetch_customers(self):
-        return self.fetch_all('customers',
-                              'id, firstname, lastname, phone, email')
+    # def fetch_customers(self):
+    #     return self.fetch_all('customers',
+    #                           'id, firstname, lastname, phone, email')
 
     def check_if_customer_exists(self, customer_data):
         """
@@ -78,17 +78,17 @@ class DBProcessor(Entity):
         c_id = self.database.cursor.fetchone()
         return c_id[0] if c_id else None
 
-    def get_item_id(self, table, conditions):
-        """
-        Get item ID from database.
-        :param conditions:  Conditions to search for.
-        :param table: Name of the table.
-        :return:
-        """
-        self.logger.debug(f"get_item_id({table}, {conditions})")
-        query = f"SELECT {table[:-1]}id FROM {table} WHERE ?"
-        self.database.cursor.execute(query, (conditions,))
-        return self.database.cursor.fetchone()
+    # def get_item_id(self, table, conditions):
+    #     """
+    #     Get item ID from database.
+    #     :param conditions:  Conditions to search for.
+    #     :param table: Name of the table.
+    #     :return:
+    #     """
+    #     self.logger.debug(f"get_item_id({table}, {conditions})")
+    #     query = f"SELECT {table[:-1]}id FROM {table} WHERE ?"
+    #     self.database.cursor.execute(query, (conditions,))
+    #     return self.database.cursor.fetchone()
 
     def get_item_from_id(self, table, item_id):
         """
@@ -101,15 +101,15 @@ class DBProcessor(Entity):
         self.database.cursor.execute(query, (item_id,))
         return self.database.cursor.fetchone()
 
-    def get_customer_cars_ids(self, customer_id):
-        """
-        Get customer cars ID from database.
-        :param customer_id: ID of the customer.
-        :return:
-        """
-        query = "SELECT carid FROM cars WHERE customerid = ?"
-        self.database.cursor.execute(query, (customer_id,))
-        return self.database.cursor.fetchall()
+    # def get_customer_cars_ids(self, customer_id):
+    #     """
+    #     Get customer cars ID from database.
+    #     :param customer_id: ID of the customer.
+    #     :return:
+    #     """
+    #     query = "SELECT carid FROM cars WHERE customerid = ?"
+    #     self.database.cursor.execute(query, (customer_id,))
+    #     return self.database.cursor.fetchall()
 
     def get_all_items(self, table, where=None):
         """
@@ -196,26 +196,26 @@ class DBProcessor(Entity):
         self.database.cursor.execute(query, values)
         self.database.connection.commit()
 
-    def get_columns_from_table(self, table_name):
-        """
-        Get columns from table.
-        :param table_name: Name of the table to get columns from.
-        :return: List of columns.
-        """
-        query = f"PRAGMA table_info({table_name})"
-        self.database.cursor.execute(query)
-        return [column[1] for column in self.database.cursor.fetchall()]
+    # def get_columns_from_table(self, table_name):
+    #     """
+    #     Get columns from table.
+    #     :param table_name: Name of the table to get columns from.
+    #     :return: List of columns.
+    #     """
+    #     query = f"PRAGMA table_info({table_name})"
+    #     self.database.cursor.execute(query)
+    #     return [column[1] for column in self.database.cursor.fetchall()]
 
-    def delete_ticket(self, ticket_id):
-        """
-        Delete ticket from database.
-        :param ticket_id: ID of the ticket to delete.
-        :return:
-        """
-        self.logger.warn(f"Deleting ticket with ID: {ticket_id}...")
-        query = "DELETE FROM tickets WHERE ticketid = ?"
-        self.database.cursor.execute(query, (ticket_id,))
-        self.database.connection.commit()
+    # def delete_ticket(self, ticket_id):
+    #     """
+    #     Delete ticket from database.
+    #     :param ticket_id: ID of the ticket to delete.
+    #     :return:
+    #     """
+    #     self.logger.warn(f"Deleting ticket with ID: {ticket_id}...")
+    #     query = "DELETE FROM tickets WHERE ticketid = ?"
+    #     self.database.cursor.execute(query, (ticket_id,))
+    #     self.database.connection.commit()
 
     def delete_item(self, table_name, item_id):
         """
@@ -271,20 +271,20 @@ class DBProcessor(Entity):
             'models': model_pack
         }
 
-    def map_id_to_name(self, name, section):
-        # Get data from self.processor_static_values
-        # Return id of given name
-        # self._print_static_values()
-        self.logger.debug(f"Mapping {name} to id from {section}...")
-        if section == 'models':
-            for brand in self.static_values[section]:
-                for model in self.static_values[section][brand]:
-                    if model[1] == name:
-                        return model[0] if model[0] else None
-        if section:
-            for item in self.static_values[section].values():
-                if item == name:
-                    return item if item else None
+    # def map_id_to_name(self, name, section):
+    #     # Get data from self.processor_static_values
+    #     # Return id of given name
+    #     # self._print_static_values()
+    #     self.logger.debug(f"Mapping {name} to id from {section}...")
+    #     if section == 'models':
+    #         for brand in self.static_values[section]:
+    #             for model in self.static_values[section][brand]:
+    #                 if model[1] == name:
+    #                     return model[0] if model[0] else None
+    #     if section:
+    #         for item in self.static_values[section].values():
+    #             if item == name:
+    #                 return item if item else None
 
     def map_name_to_id(self, name, section):
         # Get data from self.processor_static_values

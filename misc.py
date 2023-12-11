@@ -185,8 +185,6 @@ EDIT_CAR_WINDOW_CONFIG = {
     #'font': ('Arial', 10)
     }
 
-
-
 WINDOWS_SETTINGS = {
     'ticket_window': {
         'config': TICKET_WINDOW_CONFIG,
@@ -243,5 +241,3 @@ def popup(m_type, title, msg):
 
     out = _type[m_type](title, msg)
     return out
-
-
