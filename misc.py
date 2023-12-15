@@ -185,8 +185,6 @@ EDIT_CAR_WINDOW_CONFIG = {
     #'font': ('Arial', 10)
     }
 
-
-
 WINDOWS_SETTINGS = {
     'ticket_window': {
         'config': TICKET_WINDOW_CONFIG,
@@ -230,7 +228,6 @@ class Logger:
     def get_logger(name):
         return logging.getLogger(name)
 
-
 def popup(m_type, title, msg):
     _type = {
         'info': messagebox.showinfo,
@@ -243,5 +240,3 @@ def popup(m_type, title, msg):
 
     out = _type[m_type](title, msg)
     return out
-
-

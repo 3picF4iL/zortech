@@ -1,4 +1,3 @@
-import tkinter as tk
 from tkinter import ttk
 from gui_elements import (
     TreeViewSelector,
@@ -20,6 +19,7 @@ class MainGUI(Entity):
         self.tree_views = {}
 
         self._init_gui()
+
 
     def _init_gui(self):
         self.logger.debug("* Initializing GUI...")
