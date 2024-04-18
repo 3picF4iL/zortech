@@ -6,13 +6,13 @@ from gui_elements import (
     EditTicketWindow,
     EditCustomerWindow)
 from misc import Entity, popup
-from database_model import DBProcessor
+from database.database_model import DBProcessor
 
 
 class MainGUI(Entity):
-    def __init__(self):
+    def __init__(self, database):
         super().__init__()
-        self.database = DBProcessor()
+        self.database = database
         # Create main window (layout/GUI)
         self.root = None
         self.tabs = None
@@ -59,6 +59,8 @@ class MainGUI(Entity):
         filemenu.add_command(label=self._lang('import_db'), command=self.menu_on_open_file)
         filemenu.add_command(label=self._lang('export_db'), command=self.menu_on_save_file)
         filemenu.add_separator()
+        filemenu.add_command(label=self._lang('settings'), command=self.menu_on_settings)
+        filemenu.add_separator()
         filemenu.add_command(label=self._lang('exit'), command=self.menu_on_exit)
 
         menubar.add_cascade(label=self._lang('file'), menu=filemenu, underline=1)
@@ -83,8 +85,8 @@ class MainGUI(Entity):
         self.logger.debug("\tInitializing tree views...")
         notebook_tabs = {
             'tickets': ['ID', 'date', 'customer', 'car', 'notes'],
-            'customers': ['ID', 'customer_firstname', 'customer_lastname', 'email', 'phone'],
-            'cars': ['ID', 'brandname', 'modelname', 'colorname', 'year', 'vin', 'customer'],
+            'customers': ['ID', 'customer_first_name', 'customer_last_name', 'email', 'phone'],
+            'cars': ['ID', 'brand_name', 'model_name', 'color_name', 'year', 'vin', 'customer'],
         }
         notebook = ttk.Notebook(self.main_frame)
         notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
@@ -112,6 +114,9 @@ class MainGUI(Entity):
         popup('info', self._lang('info'), self._lang('not_implemented'))
 
     def menu_on_save_file(self):
+        popup('info', self._lang('info'), self._lang('not_implemented'))
+
+    def menu_on_settings(self):
         popup('info', self._lang('info'), self._lang('not_implemented'))
 
     def menu_on_exit(self):

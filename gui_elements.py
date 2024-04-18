@@ -7,6 +7,7 @@ import datetime
 import tkinter as tk
 import re
 from tkinter import ttk
+from entities import *
 
 
 class Treeview(Entity):
@@ -51,25 +52,34 @@ class Treeview(Entity):
         self.menu = tk.Menu(self.treeview, tearoff=0)
         self.menu.add_command(label=self._lang('edit'), command=lambda: self.edit_row())
         self.menu.add_command(label=self._lang('delete'), command=lambda: self.delete_row())
+        self.menu.add_separator()
+        self.menu.add_command(label=self._lang('change_status'), command=lambda: self.change_status())
         self.treeview.bind('<Button-3>', self.on_right_click)
         self.treeview.bind('<Button-2>', self.on_right_click)
         self.treeview.bind('<Control-Button-1>', self.on_right_click)
         self.treeview.bind('<Double-Button-1>', self.edit_row)
 
     def populate_treeview(self):
+        # FIXME: Refactor this function it is ugly
+        tag = ''
         self.logger.debug("\tPopulating treeview...")
+        style = ttk.Style()
+        style.map('Treeview', background=[('selected', '#999999')])
+        self.treeview.tag_configure('Green.Row', background='#E6FFE6')
+        self.treeview.tag_configure('Red.Row', background='#FFE6E6')
         self.clear_treeview()
         data = self.database.get_all_items(self.name)
         # Capitalize first letter of each element in data lists
         data = [
-            [self._lang(item).upper() if isinstance(item, str) else item for item in row]
+            [item.upper() if isinstance(item, str) else item for item in row]
             for row in data
         ]
-        self.logger.debug(f"\t\tData: {data}")
         if data:
             for row in data:
-                self.logger.debug(f"\t\tInserting row {row}...")
-                self.treeview.insert('', tk.END, values=row)
+                # Set color row depends on the last value from data (status 1/0 where 1 is not done)w
+                if self.name == 'tickets':
+                    tag = 'Green.Row' if row[-1] == 0 else 'Red.Row'
+                self.treeview.insert('', tk.END, values=row, tags=tag)
         else:
             self.logger.debug("\t\tNo data to populate treeview...")
 
@@ -78,16 +88,24 @@ class Treeview(Entity):
         self.treeview.delete(*self.treeview.get_children())
 
     def on_right_click(self, event):
-        button_state = tk.NORMAL
+        # FIXME: Refactor this function, do we really need duplicated code?
+        button_state = tk.DISABLED
         try:
-            self.treeview.selection_set(self.treeview.identify_row(event.y))
-            self.menu.entryconfig(self._lang('delete'), command=lambda: self.delete_row(), state=button_state)
-            self.menu.entryconfig(self._lang('edit'), command=lambda: self.edit_row(), state=button_state)
-            self.menu.post(event.x_root, event.y_root)
+            row_id = self.treeview.identify_row(event.y)
+            if row_id:
+                button_state = tk.NORMAL
+                self.treeview.selection_set(row_id)
+                self.menu.entryconfig(self._lang('delete'), command=lambda: self.delete_row(), state=button_state)
+                self.menu.entryconfig(self._lang('edit'), command=lambda: self.edit_row(), state=button_state)
+                self.menu.entryconfig(self._lang('change_status'), command=lambda: self.change_status(), state=button_state)
+                self.menu.post(event.x_root, event.y_root)
         finally:
             self.menu.grab_release()
 
     def edit_row(self, event=None):
+        pass
+
+    def change_status(self, event=None):
         pass
 
     def delete_row(self):
@@ -162,19 +180,20 @@ class DataWindow(Entity):
         entry = tk.Entry(frame)
         if 'list' in field[0].lower():
             entry = ttk.Combobox(frame, values=[])
-        if field[0] == 'date':
-            entry.insert(0, self.date)
+        if 'date_creation' in field[0]:
+            if not self.window_config['title'] == 'edit_ticket':
+                entry.insert(0, self.date)
             entry.configure(state=self.window_config['ticket_date_state'])
         if field[0] == 'notes':
             entry = tk.Text(frame, height=5, width=10, wrap=tk.WORD, pady=5, padx=5)
-        if field[0] == 'colorname':
-            entry = ttk.Combobox(frame, width=10, values=[self._lang(c).capitalize() for c in self.database.static_values['colors'].values()])
-        if field[0] == 'brandname':
-            entry = ttk.Combobox(frame, width=10, values=[b.capitalize() for b in self.database.static_values['brands'].values()])
+        if field[0] == 'color_name':
+            entry = ttk.Combobox(frame, width=10, values=[c[1].upper() for c in self.database.fetch_colors()])
+        if field[0] == 'brand_name':
+            entry = ttk.Combobox(frame, width=10, values=[b[1].upper() for b in self.database.fetch_brands()])
             entry.bind('<<ComboboxSelected>>', self._update_models)
             entry.bind("<Return>", self._update_models)
-        if field[0] == 'modelname':
-            entry = ttk.Combobox(frame, width=10, values='')
+        if field[0] == 'model_name':
+            entry = ttk.Combobox(frame, width=10, values=('',))
         if 'error' in field[0].lower():
             error_label = tk.Label(frame, text='', fg='red', font=('Arial', 6))
             error_label.grid(row=field[1], column=1, sticky='we', padx=5, pady=(0, 0))
@@ -190,13 +209,14 @@ class DataWindow(Entity):
             self.entries[field[0]] = entry
 
     def _update_models(self, event=None):
-        self.entries['modelname'].set('')
-        brand = self.entries['brandname'].get().lower()
+        self.logger.debug("Update models")
+        self.entries['model_name'].set('')
+        brand = self.entries['brand_name'].get().lower()
         try:
-            models = [m.capitalize() for m in self.database.static_values['models'][brand].values()]
+            models = [m[0].upper() for m in self.database.fetch_models_from_brand(brand)]
         except KeyError:
             models = []
-        self.entries['modelname'].configure(values=models)
+        self.entries['model_name'].configure(values=models)
 
     def _build_notes_section(self):
         pass
@@ -222,7 +242,7 @@ class DataWindow(Entity):
     def _validate_data(self):
         rc = True
         self.logger.info('* Validating data')
-        necessary_entries = ['lastname', 'phone', 'brandname']
+        necessary_entries = ['last_name', 'phone', 'brand_name']
         optional_entries = ['vin', 'year', 'email']
         for entry in self.entries:
             if entry in necessary_entries:
@@ -278,12 +298,12 @@ class DataWindow(Entity):
                 'error': 'phone_invalid',
                 'regex': r'^[0-9]{9}$'
             },
-            'brandname': {
+            'brand_name': {
                 'error': 'brand_invalid',
                 'regex': r'^[a-zA-Z0-9 ]+$'
             },
-            'lastname': {
-                'error': 'lastname_invalid',
+            'last_name': {
+                'error': 'last_name_invalid',
                 'regex': r'^[a-zA-Z0-9 ]+$'
             },
         }
@@ -339,6 +359,18 @@ class TicketTreeview(Treeview):
             ticket_id = self.treeview.item(selected_item)["values"][0]
             self.logger.debug(f"\t\t\tTicket ID: {ticket_id}")
             EditTicketWindow(self.parent, ticket_id)
+
+    def change_status(self, event=None):
+        status = 1
+        ticket_id = self.treeview.item(self.treeview.selection())["values"][0]
+        if ticket_id:
+            current_ticket_status = self.database.get_item_from_id('tickets', ticket_id, columns='status')
+            print(current_ticket_status)
+            if bool(current_ticket_status['status']):
+                status = 0
+
+            self.database.update_ticket({'id': ticket_id, 'status': status})
+        self.populate_treeview()
 
 
 class CustomerTreeview(Treeview):
@@ -401,148 +433,123 @@ class NewTicketWindow(DataWindow):
         data = self.get_data_from_entries()
         if not data:
             return
-        self.logger.info('* Saving data')
-        self.logger.debug('\tData: {}'.format(data))
-        customer = {}
-        car = {}
-        ticket = {}
-        t_id = None
-        if data:
-            # Check if customer exists in DB by lastname and phone
-            # If not, create new customer and get customer_id
-            # If yes, get customer_id
-            # customer_id = self.db.get_customer_id(data['lastname'], data['phone'])
-            # Check if car exists in DB by customerid
-            customer['lastname'] = data.get('lastname')
-            customer['phone'] = data.get('phone')
-            customer['email'] = data.get('email', '')
-            customer['firstname'] = data.get('firstname', '')
-            customer_id = self.database.check_if_customer_exists(customer)
 
-            if not customer_id:
-                customer_id = self.database.add_item_to_table('customers', customer)
+        customer = Customer({
+            'first_name': data.get('first_name', '').lower(),
+            'last_name': data.get('last_name', '').lower(),
+            'phone':  data.get('phone', '').lower(),
+            'email':  data.get('email', '').lower()
+        }, self.database)
+        customer.add()
 
-            customer['customerid'] = customer_id
-            self.logger.debug('\tCustomer: {}'.format(customer))
+        car = Car({
+            'brand_id': self.database.get_item_from_name('brands', data.get('brand_name').lower()),
+            'model_id': self.database.get_item_from_name('models', data.get('model_name').lower()),
+            'vin': data.get('vin', ''),
+            'year': data.get('year', ''),
+            'color_id': self.database.get_item_from_name('colors', data.get('color_name').lower()),
+            'customer_id': customer.get_id(),
+        }, self.database)
+        car.add()
 
-            car['brandid'] = self.database.map_name_to_id(data.get('brandname'), 'brands')
-            car['modelid'] = self.database.map_name_to_id(data.get('modelname'), 'models')
-            car['vin'] = data.get('vin', '')
-            car['year'] = data.get('year', '')
-            car['colorid'] = data.get('colorname', '').split(' ')[0]
-            car['customerid'] = customer['customerid']
-            car_id = self.database.check_if_car_exists(car)
-            if not car_id:
-                car_id = self.database.add_item_to_table('cars', car)
-            car['carid'] = car_id
-            self.logger.debug('\tCar: {}'.format(car))
+        ticket = Ticket({
+            'customer_id': customer.get_id(),
+            'car_id': car.get_id(),
+            'date_creation': data.get('date_creation'),
+            'date_modification': data.get('date_modification'),
+            'notes': data.get('notes', ''),
+            'status': data.get('status', '')
+        }, self.database)
+        ticket.add()
 
-            ticket['customerid'] = customer['customerid']
-            ticket['carid'] = car['carid']
-            ticket['date'] = data.get('date')
-            ticket['notes'] = data.get('notes', '')
-
-            self.logger.debug('\tTicket: {}'.format(ticket))
-            t_id = self.database.add_item_to_table('tickets', ticket)
-            if t_id:
-                self.quit_window()
-                popup('info', 'Success', self._lang(f'Ticket {t_id} created'))
-                self.parent.update_treeviews()
+        self.quit_window()
+        self.parent.update_treeviews()
+        if ticket.get_id():
+            popup('info', 'Success', self._lang(f'Ticket {ticket.get_id()} created'))
+        else:
+            popup('error', 'Error', "Ticket could not be created!")
 
 
 class EditTicketWindow(DataWindow):
     def __init__(self, parent, ticket):
-        super().__init__(parent, WINDOWS_SETTINGS['ticket_window'])
+        super().__init__(parent, WINDOWS_SETTINGS['edit_ticket_window'])
         self.logger.info('EditTicketWindow created')
-        self._clear_date()
+        self.data = None
+        self.car = None
+        self.customer = None
         self.ticket = ticket
-        self.fill_data()
+        self._read_ticket_data()
 
-    def _clear_date(self):
-        self.entries['date'].config(state=tk.NORMAL)
-        self.entries['date'].delete(0, 'end')
+    def _read_ticket_data(self):
+        # TODO: This should be moved and refactored
+        self.data = self.database.get_item_from_id('tickets', self.ticket)
+        ticket = TicketDAO(self.data, self.database)
+        self.customer = CustomerDAO(self.data, self.database)
+        self.car = CarDAO(self.data, self.database)
 
-    def fill_data(self):
-        self.logger.info(f'* Filling data with ticket data {self.ticket}')
-        self.prepare_data()
+        self.entries['date_creation'].configure(state='normal')
+        self.entries['date_creation'].insert(0, ticket.date_creation)
+        self.entries['date_creation'].configure(state='disable')
+        self.entries['date_modification'].insert(0, self.date)
 
-    def prepare_data(self):
-        self.logger.debug(f"Getting ticket data for ticket ID: {self.ticket}")
-        ticket_data = self.database.get_item_from_id('tickets', self.ticket)
-        self.logger.debug(f"Ticket data: {ticket_data}")
-        customer_data = self.database.get_item_from_id('customers', ticket_data[2])
-        car_data = self.database.get_item_from_id('cars', ticket_data[3])
-        self.logger.debug(f"Car data: {car_data}")
-        brand_data = self.database.static_values['brands'][car_data[2]]
-        self.logger.debug(f"Brand data: {brand_data}")
-        self.logger.debug(f"{self.database.static_values}")
-        self.logger.debug(f"{self.database.static_values['models'][brand_data]}")
-        model_data = self.database.static_values['models'][brand_data].get(car_data[3], '')
-        color_data = self.database.static_values['colors'].get(car_data[4], '')
-        self.logger.debug(f"Customer data: {customer_data}")
+        self.entries['first_name'].insert(0, self.customer.collected_data['first_name'].capitalize())
+        self.entries['last_name'].insert(0, self.customer.collected_data['last_name'].capitalize())
+        self.entries['phone'].insert(0, self.customer.collected_data['phone'])
+        self.entries['email'].insert(0, self.customer.collected_data['email'].upper())
 
-        self.logger.debug(f"Brand data: {brand_data}")
-        self.logger.debug(f"Model data: {model_data}")
+        self.entries['brand_name'].insert(0, self.database.get_item_from_id('brands',
+                                                                            self.car.collected_data['brand_id']
+                                                                            )['name'].upper())
+        self._update_models()
+        self.entries['model_name'].insert(0, self.database.get_item_from_id('models',
+                                                                            self.car.collected_data['model_id']
+                                                                            )['name'].upper())
+        self.entries['year'].insert(0, self.car.collected_data['year'])
+        self.entries['color_name'].insert(0, self.database.get_item_from_id('colors',
+                                                                            self.car.collected_data['color_id']
+                                                                            )['name'].upper())
+        self.entries['vin'].insert(0, self.car.collected_data['vin'].upper())
 
-        self.entries['date'].insert(0, ticket_data[1])
-
-        self.entries['firstname'].insert(0, customer_data[1])
-        self.entries['lastname'].insert(0, customer_data[2])
-        self.entries['phone'].insert(0, customer_data[3])
-        self.entries['email'].insert(0, customer_data[4])
-
-        self.entries['brandname'].insert(0, brand_data.capitalize())
-        self.entries['modelname'].insert(0, model_data)
-        self.entries['year'].insert(0, car_data[5])
-        self.entries['colorname'].insert(0, color_data.capitalize())
-        self.entries['vin'].insert(0, car_data[6])
-
-        self.entries['notes'].insert(tk.END, ticket_data[4])
+        self.entries['notes'].insert(tk.END, ticket.notes)
 
     def save_data(self):
+        # TODO: Remove duplicated code (compare this to other functions - save_data)
         data = self.get_data_from_entries()
-        self.logger.debug(f"Data: {data}")
-        customer = {}
-        car = {}
-        ticket = {}
+        if not data:
+            return
+        customer = Customer({
+            'id': self.customer.id,
+            'first_name': data.get('first_name', '').lower(),
+            'last_name': data.get('last_name', '').lower(),
+            'phone':  data.get('phone', ''),
+            'email':  data.get('email', '').lower(),
+        }, self.database)
+        customer.update()
 
-        customer['lastname'] = data.get('lastname')
-        customer['phone'] = data.get('phone')
-        customer['email'] = data.get('email', '')
-        customer['firstname'] = data.get('firstname', '')
-        customer_id = self.database.check_if_customer_exists(customer)
-        if not customer_id:
-            rc = popup('askyesno', 'Question', self._lang('add_customer'))
-            if rc:
-                customer_id = self.database.add_item_to_table('customers', customer)
-        customer['customerid'] = customer_id
-        self.logger.debug('\tCustomer: {}'.format(customer))
+        car = Car({
+            'id': self.car.id,
+            'brand_id': self.database.get_item_from_name('brands', data.get('brand_name')),
+            'model_id': self.database.get_item_from_name('models', data.get('model_name')),
+            'vin': data.get('vin', ''),
+            'year': data.get('year', ''),
+            'color_id': self.database.get_item_from_name('colors', data.get('color_name')),
+            'customer_id': customer.get_id(),
+        }, self.database)
+        car.update()
 
-        car['brandid'] = self.database.map_name_to_id(data.get('brandname'), 'brands')
-        car['modelid'] = self.database.map_name_to_id(data.get('modelname'), 'models')
-        car['vin'] = data.get('vin', '')
-        car['year'] = data.get('year', '')
-        car['colorid'] = data.get('colorname', '').split(' ')[0]
-        car['customerid'] = customer['customerid']
-        car_id = self.database.check_if_car_exists(car)
-        if not car_id:
-            rc = popup('askyesno', 'Question', self._lang('ask_add_car'))
-            if rc:
-                car_id = self.database.add_item_to_table('cars', car)
-        car['carid'] = car_id
-        self.logger.debug('\tCar: {}'.format(car))
+        ticket = Ticket({
+            'id': self.ticket,
+            'customer_id': customer.get_id(),
+            'car_id': car.get_id(),
+            'date_creation': data.get('date_creation'),
+            'date_modification': data.get('date_modification'),
+            'notes': data.get('notes', '')
+        }, self.database)
+        ticket.update()
 
-        ticket['customerid'] = customer['customerid']
-        ticket['carid'] = car['carid']
-        ticket['date'] = data.get('date')
-        ticket['notes'] = data.get('notes', '')
-        ticket['ticketid'] = self.ticket
-
-        self.logger.debug('\tTicket: {}'.format(ticket))
-        self.database.update_ticket(ticket)
         self.quit_window()
-        popup('info', 'Success', self._lang(f'Ticket {self.ticket} updated'))
         self.parent.update_treeviews()
+        popup('info', 'Success', self._lang(f'Ticket {self.ticket} updated'))
 
 
 class EditCustomerWindow(DataWindow):
@@ -550,23 +557,40 @@ class EditCustomerWindow(DataWindow):
         super().__init__(parent, WINDOWS_SETTINGS['edit_customer_window'])
         self.logger.info('EditCustomerWindow created')
         self.customer_id = customer_id
-        self.current_customer_data = None
 
-        self.fill_data()
+        self._read_customer_data()
 
-    def fill_data(self):
-        self.logger.info(f'* Filling data with customer data {self.customer_id}')
-        self.prepare_data()
+    def _get_customer_cars(self):
+        # FIXME: Maybe we should create a separate function for this?
+        customer_cars = self.database.fetch_all_join('cars',
+                                                     columns='brands.id AS brand_id, models.id AS model_id',
+                                                     join='''
+                                                     brands
+                                                     ON cars.brand_id = brands.id
+                                                     LEFT JOIN models
+                                                     ON cars.model_id = models.id
+                                                     LEFT JOIN colors
+                                                     ON cars.color_id = colors.id
+                                                     ''',
+                                                     where=f'customer_id = {self.customer_id}',
+                                                     dictionary=True)
+        customer_car_info = [
+            (f"{self.database.get_item_from_id('brands', brand['brand_id'])['name'].upper()}"
+             f" {self.database.get_item_from_id('models', brand['model_id'])['name'].upper()}")
+            for brand in customer_cars
+        ]
+        return customer_car_info
 
-    def prepare_data(self):
+    def _read_customer_data(self):
+        self.logger.info(f'* Read customer data with customer ID: {self.customer_id}')
         customer_data = self.database.get_item_from_id('customers', self.customer_id)
         self.logger.debug(f"Customer data: {customer_data}")
-        self.entries['firstname'].insert(0, customer_data[1])
-        self.entries['lastname'].insert(0, customer_data[2])
-        self.entries['email'].insert(0, customer_data[3])
-        self.entries['phone'].insert(0, customer_data[4])
-        self.entries['car_list'].set(self._lang('not_implemented'))
-        self.current_customer_data = customer_data
+        self.entries['first_name'].insert(0, customer_data['first_name'].capitalize())
+        self.entries['last_name'].insert(0, customer_data['last_name'].capitalize())
+        self.entries['email'].insert(0, customer_data['email'].upper())
+        self.entries['phone'].insert(0, customer_data['phone'])
+
+        self.entries['car_list'].configure(values=self._get_customer_cars())
 
     def save_data(self):
         data = self.get_data_from_entries()
@@ -578,10 +602,10 @@ class EditCustomerWindow(DataWindow):
 
         # Update customer data
         customer = {
-            'customerid': self.customer_id,
-            'firstname': data.get('firstname', ''),
-            'lastname': data.get('lastname'),
-            'email': data.get('email', ''),
+            'id': self.customer_id,
+            'first_name': data.get('first_name', '').lower(),
+            'last_name': data.get('last_name').lower(),
+            'email': data.get('email', '').lower(),
             'phone': data.get('phone'),
         }
         self.logger.debug(f"Customer data: {customer}")
@@ -597,34 +621,30 @@ class EditCarWindow(DataWindow):
         self.logger.info('EditCarWindow created')
         self.car_id = car_id
 
-        self.fill_data()
-        self.current_car_data = None
+        self._read_car_data()
 
-    def fill_data(self):
-        self.logger.info(f'* Filling data with car data {self.car_id}')
-        self.prepare_data()
-
-    def prepare_data(self):
+    def _read_car_data(self):
+        self.logger.info(f'* Reading data for car with ID: {self.car_id}')
         car_data = self.database.get_item_from_id('cars', self.car_id)
-        self.logger.debug(f"Car data: {car_data}")
-        brand_data = self.database.static_values['brands'].get(car_data[2], '').capitalize()
-        self.logger.debug(f"Brand data: {brand_data}")
-        model_data = self.database.static_values['models'][brand_data.lower()].get(car_data[3], '')
-        color_data = self.database.static_values['colors'].get(car_data[4], '')
-        customer_data = self.database.get_item_from_id('customers', car_data[1])
-        customer_data = f"{customer_data[2]} ({customer_data[4]})"
-        self.logger.debug(f"Model data: {model_data}")
 
-        self.entries['brandname'].insert(0, brand_data)
+        self.entries['brand_name'].insert(0, self.database.get_item_from_id('brands',
+                                                                            car_data['brand_id']
+                                                                            )['name'].upper())
         self._update_models()
-        self.entries['modelname'].insert(0, model_data)
-        self.entries['year'].insert(0, car_data[5])
-        self.entries['colorname'].insert(0, color_data.capitalize())
-        self.entries['vin'].insert(0, car_data[6])
-        self.entries['customer'].insert(0, customer_data)
+        self.entries['model_name'].insert(0, self.database.get_item_from_id('models',
+                                                                            car_data['model_id']
+                                                                            )['name'].upper())
+        self.entries['year'].insert(0, car_data['year'])
+        self.entries['color_name'].insert(0, self.database.get_item_from_id('colors',
+                                                                            car_data['color_id']
+                                                                            )['name'].upper())
+        self.entries['vin'].insert(0, car_data['vin'])
+        customer_data = self.database.get_item_from_id('customers', car_data['customer_id'])
+        self.entries['customer'].insert(0,
+                                        (f"{customer_data['first_name'].capitalize()} "
+                                         f"{customer_data['last_name'].capitalize()} "
+                                         f"{customer_data['phone']}"))
         self.entries['customer'].config(state='disabled')
-
-        self.current_car_data = car_data
 
     def save_data(self):
         data = self.get_data_from_entries()
@@ -635,15 +655,16 @@ class EditCarWindow(DataWindow):
 
         # Update car data
         car = {
-            'carid': self.car_id,
-            'brandid': self.database.map_name_to_id(data.get('brandname', '').lower(), 'brands'),
-            'modelid': self.database.map_name_to_id(data.get('modelname', ''), 'models'),
+            'id': self.car_id,
+            'brand_id': self.database.get_item_from_name('brands', data.get('brand_name')),
+            'model_id': self.database.get_item_from_name('models', data.get('model_name')),
             'year': data.get('year', ''),
-            'colorid': self.database.map_name_to_id(data.get('colorname', '').lower(), 'colors'),
+            'color_id': self.database.get_item_from_name('colors', data.get('color_name')),
             'vin': data.get('vin', ''),
         }
         self.logger.debug(f"Car data: {car}")
         self.database.update_car(car)
         self.quit_window()
-        popup('info', 'Success', self._lang(f'Car {self.car_id} updated'))
         self.parent.update_treeviews()
+        popup('info', 'Success', self._lang(f'Car {self.car_id} updated'))
+
