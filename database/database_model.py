@@ -1,5 +1,5 @@
 import inspect
-from database import Database
+from database.database import Database
 from misc import Entity
 import sqlite3
 
@@ -11,13 +11,11 @@ Links between the database and the application
 class DBProcessor(Entity):
     def __init__(self):
         super().__init__()
-        self.database_name = "zortech_sqlite.db"
+        self.database_name = "database/zortech_sqlite.db"
         self.database = Database(self.database_name)
 
         self.static_values = None
-
         self.get_static_values_from_database()
-        self.logger.debug(f"Static values: {self.static_values}")
 
     def execute_query(self, query):
         """
@@ -33,28 +31,40 @@ class DBProcessor(Entity):
             query += f" WHERE {where}"
         return self.execute_query(query)
 
-    def fetch_all_join(self, table, columns='*', join=None, where=None):
+    def fetch_all_join(self, table, columns='*', join=None, where=None, dictionary=False):
         query = f"SELECT {columns} FROM {table}"
         if join:
             query += f" JOIN {join}"
         if where:
             query += f" WHERE {where}"
-        return self.execute_query(query)
+        self.database.cursor.execute(query)
+        results = self.database.cursor.fetchall()
+        if dictionary:
+            results = [{description[0]: data for description, data in
+                        zip(self.database.cursor.description, result)} for result in results]
+
+        return results
 
     def fetch_brands(self):
         return self.fetch_all('brands',
-                              'brandid, brandname')
+                              'id, name')
 
     def fetch_colors(self):
         return self.fetch_all('colors',
-                              'colorid, colorname')
+                              'id, name')
 
     def fetch_models(self):
-        return self.fetch_all_join('models', 'modelid, modelname, brandname', 'brands', 'models.brandid = brands.brandid')
+        return self.fetch_all_join('models',
+                                   'models.id, models.name, brand_id',
+                                   'brands',
+                                   'models.brand_id = brands.id'
+                                   )
 
-    # def fetch_customers(self):
-    #     return self.fetch_all('customers',
-    #                           'id, firstname, lastname, phone, email')
+    def fetch_models_from_brand(self, brand_name):
+        return self.fetch_all_join('models',
+                                   'models.name',
+                                   'brands ON models.brand_id = brands.id',
+                                   f"brands.name = '{brand_name}'")
 
     def check_if_customer_exists(self, customer_data):
         """
@@ -62,8 +72,9 @@ class DBProcessor(Entity):
         :param customer_data:
         :return:
         """
-        query = "SELECT customerid FROM customers WHERE lastname = ? AND phone = ?"
-        self.database.cursor.execute(query, (customer_data['lastname'], customer_data['phone']))
+        query = "SELECT id FROM customers WHERE last_name = ? AND phone = ?"
+        self.logger.debug(f"Running query: {query}")
+        self.database.cursor.execute(query, (customer_data['last_name'], customer_data['phone']))
         c_id = self.database.cursor.fetchone()
         return c_id[0] if c_id else None
 
@@ -73,43 +84,42 @@ class DBProcessor(Entity):
         :param car_data:
         :return:
         """
-        query = "SELECT carid FROM cars WHERE customerid = ? AND brandid = ? AND year = ?"
-        self.database.cursor.execute(query, (car_data['customerid'], car_data['brandid'], car_data['year']))
+        query = "SELECT id FROM cars WHERE customer_id = ? AND brand_id = ?"
+        self.database.cursor.execute(query, (car_data['customer_id'], car_data['brand_id']))
         c_id = self.database.cursor.fetchone()
         return c_id[0] if c_id else None
 
-    # def get_item_id(self, table, conditions):
-    #     """
-    #     Get item ID from database.
-    #     :param conditions:  Conditions to search for.
-    #     :param table: Name of the table.
-    #     :return:
-    #     """
-    #     self.logger.debug(f"get_item_id({table}, {conditions})")
-    #     query = f"SELECT {table[:-1]}id FROM {table} WHERE ?"
-    #     self.database.cursor.execute(query, (conditions,))
-    #     return self.database.cursor.fetchone()
-
-    def get_item_from_id(self, table, item_id):
+    def get_item_from_id(self, table, item_id, columns='*'):
         """
         Get item from database.
         :param item_id: ID of the item.
         :param table: Name of the table.
+        :param columns: Get columns, default all
         :return:
         """
-        query = f"SELECT * FROM {table} WHERE {table[:-1]}id = ?"
+        if not item_id:
+            self.logger.warning(f'Passed value to table \'{table}\' is None', exc_info=False)
+            return {'name': ''}
+        query = f"SELECT {columns} FROM {table} WHERE {table}.id = ?"
         self.database.cursor.execute(query, (item_id,))
-        return self.database.cursor.fetchone()
+        # Return data with column names as a dictionary
+        return {description[0]: data for description, data in zip(self.database.cursor.description, self.database.cursor.fetchone())}
 
-    # def get_customer_cars_ids(self, customer_id):
-    #     """
-    #     Get customer cars ID from database.
-    #     :param customer_id: ID of the customer.
-    #     :return:
-    #     """
-    #     query = "SELECT carid FROM cars WHERE customerid = ?"
-    #     self.database.cursor.execute(query, (customer_id,))
-    #     return self.database.cursor.fetchall()
+    def get_item_from_name(self, table, item_name):
+        """
+        Get item's ID from database by name
+        :param table:
+        :param item_name:
+        :return:
+        """
+        _item_name = item_name.lower()
+        query = f"""
+            SELECT {table}.id FROM {table}
+            WHERE {table}.name = ?
+        """
+        self.database.cursor.execute(query, (_item_name,))
+        item_id = self.database.cursor.fetchone()
+        return item_id[0] if item_id else ""
 
     def get_all_items(self, table, where=None):
         """
@@ -120,31 +130,32 @@ class DBProcessor(Entity):
         """
         query = {
             'tickets': """
-                SELECT tickets.ticketid, tickets.date,
-                customers.firstname || ' - ' || customers.lastname || ' - ' || customers.phone, 
-                brands.brandname || ' - ' || models.modelname, tickets.notes 
+                SELECT tickets.id, tickets.date_creation,
+                customers.first_name || ' - ' || customers.last_name || ' - ' || customers.phone, 
+                brands.name || CASE WHEN models.name IS NOT NULL THEN ' - ' || models.name ELSE '' END, tickets.notes,
+                tickets.status
                 FROM tickets 
                 LEFT JOIN customers 
-                ON tickets.customerid = customers.customerid 
+                ON tickets.customer_id = customers.id 
                 LEFT JOIN cars 
-                ON tickets.carid = cars.carid
+                ON tickets.car_id = cars.id
                 LEFT JOIN brands
-                ON cars.brandid = brands.brandid
+                ON cars.brand_id = brands.id
                 LEFT JOIN models
-                ON cars.modelid = models.modelid
+                ON cars.model_id = models.id
             """,
             'cars': """
-                SELECT cars.carid, brands.brandname, models.modelname, colors.colorname, cars.year, cars.vin,
-                customers.firstname || ' ' || customers.lastname || ' ' || customers.phone
+                SELECT cars.id, brands.name, models.name, colors.name, cars.year, cars.vin,
+                customers.first_name || ' ' || customers.last_name || ' ' || customers.phone
                 FROM cars
                 LEFT JOIN brands
-                ON cars.brandid = brands.brandid
+                ON cars.brand_id = brands.id
                 LEFT JOIN models
-                ON cars.modelid = models.modelid
+                ON cars.model_id = models.id
                 LEFT JOIN colors
-                ON cars.colorid = colors.colorid
+                ON cars.color_id = colors.id
                 LEFT JOIN customers
-                ON cars.customerid = customers.customerid
+                ON cars.customer_id = customers.id
             """,
             'customers': f"SELECT * FROM {table}",
         }
@@ -161,10 +172,10 @@ class DBProcessor(Entity):
         :return:
         """
         set_clause = ', '.join([f"{column} = ?" for column in customer_data])
-        values = tuple(customer_data.values()) + (customer_data['customerid'],)
-        query = f"UPDATE customers SET {set_clause} WHERE customerid = ?"
+        values = tuple(customer_data.values()) + (customer_data['id'],)
+        query = f"UPDATE customers SET {set_clause} WHERE customers.id = ?"
 
-        self.logger.debug(f"Updating customer with ID: {customer_data['customerid']}...")
+        self.logger.debug(f"Updating customer with ID: {customer_data['id']}...")
         self.database.cursor.execute(query, values)
         self.database.connection.commit()
 
@@ -175,10 +186,10 @@ class DBProcessor(Entity):
         :return:
         """
         set_clause = ', '.join([f"{column} = ?" for column in car_data])
-        values = tuple(car_data.values()) + (car_data['carid'],)
-        query = f"UPDATE cars SET {set_clause} WHERE carid = ?"
+        values = tuple(car_data.values()) + (car_data['id'],)
+        query = f"UPDATE cars SET {set_clause} WHERE cars.id = ?"
 
-        self.logger.debug(f"Updating car with ID: {car_data['carid']}...")
+        self.logger.debug(f"Updating car with ID: {car_data['id']}...")
         self.database.cursor.execute(query, values)
         self.database.connection.commit()
 
@@ -189,33 +200,12 @@ class DBProcessor(Entity):
         :return:
         """
         set_clause = ', '.join([f"{column} = ?" for column in ticket_data])
-        values = tuple(ticket_data.values()) + (ticket_data['ticketid'],)
-        query = f"UPDATE tickets SET {set_clause} WHERE ticketid = ?"
+        values = tuple(ticket_data.values()) + (ticket_data['id'],)
+        query = f"UPDATE tickets SET {set_clause} WHERE tickets.id = ?"
 
-        self.logger.debug(f"Updating ticket with ID: {ticket_data['ticketid']}...")
+        self.logger.debug(f"Updating ticket with ID: {ticket_data['id']}...")
         self.database.cursor.execute(query, values)
         self.database.connection.commit()
-
-    # def get_columns_from_table(self, table_name):
-    #     """
-    #     Get columns from table.
-    #     :param table_name: Name of the table to get columns from.
-    #     :return: List of columns.
-    #     """
-    #     query = f"PRAGMA table_info({table_name})"
-    #     self.database.cursor.execute(query)
-    #     return [column[1] for column in self.database.cursor.fetchall()]
-
-    # def delete_ticket(self, ticket_id):
-    #     """
-    #     Delete ticket from database.
-    #     :param ticket_id: ID of the ticket to delete.
-    #     :return:
-    #     """
-    #     self.logger.warn(f"Deleting ticket with ID: {ticket_id}...")
-    #     query = "DELETE FROM tickets WHERE ticketid = ?"
-    #     self.database.cursor.execute(query, (ticket_id,))
-    #     self.database.connection.commit()
 
     def delete_item(self, table_name, item_id):
         """
@@ -225,7 +215,7 @@ class DBProcessor(Entity):
         :return:
         """
         self.logger.warn(f"Deleting item with ID: {item_id} from {table_name}...")
-        query = f"DELETE FROM {table_name} WHERE {table_name[:-1]}id = ?"
+        query = f"DELETE FROM {table_name} WHERE {table_name}.id = ?"
         self.database.cursor.execute(query, (item_id,))
         self.database.connection.commit()
 
@@ -240,7 +230,7 @@ class DBProcessor(Entity):
         placeholders = ', '.join(['?'] * len(item_data))
         values = tuple(item_data.values())
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-
+        self.logger.debug(f"Running query: {query} with values {values}")
         try:
             self.database.cursor.execute(query, values)
             self.database.connection.commit()
@@ -267,24 +257,9 @@ class DBProcessor(Entity):
 
         self.static_values = {
             'brands': {b[0]: b[1] for b in self.fetch_brands()},
-            'colors': {c[0]: self._lang(c[1]).lower() for c in self.fetch_colors()},
+            'colors': {c[0]: c[1].lower() for c in self.fetch_colors()},
             'models': model_pack
         }
-
-    # def map_id_to_name(self, name, section):
-    #     # Get data from self.processor_static_values
-    #     # Return id of given name
-    #     # self._print_static_values()
-    #     self.logger.debug(f"Mapping {name} to id from {section}...")
-    #     if section == 'models':
-    #         for brand in self.static_values[section]:
-    #             for model in self.static_values[section][brand]:
-    #                 if model[1] == name:
-    #                     return model[0] if model[0] else None
-    #     if section:
-    #         for item in self.static_values[section].values():
-    #             if item == name:
-    #                 return item if item else None
 
     def map_name_to_id(self, name, section):
         # Get data from self.processor_static_values
@@ -292,15 +267,16 @@ class DBProcessor(Entity):
         # self._print_static_values()
         # Static values
         # brands: {1: 'Volkswagen', 2: 'Renault', 3: 'Peugeot' ...}
-        self.logger.debug(f"Mapping {name} to id from {section}...")
+        _name = name.lower()
+        self.logger.debug(f"Mapping {_name} to id from {section}...")
         if section == 'models':
             for brand in self.static_values[section]:
                 for key, value in self.static_values[section][brand].items():
-                    if value == name:
+                    if value == _name:
                         return key if key else None
         if section:
             for key, value in self.static_values[section].items():
-                if value == name:
+                if value == _name:
                     return key if key else None
 
     def close(self):

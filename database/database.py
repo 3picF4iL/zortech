@@ -19,8 +19,6 @@ class Database(Entity):
 
         self._connect_to_database()
 
-        self._update_tables_description()
-
     def close(self):
         """
         Close database connection.
@@ -36,17 +34,20 @@ class Database(Entity):
             self.logger.exception(f"Cannot close connection to database {self.db}, error {e}...")
             raise
 
-    def _update_tables_description(self):
+    def _create_tables(self):
         """
-        Update tables description.
+        Create database tables using database_schema.sql file.
         :return:
         """
-        self.logger.info("* Updating tables description...")
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        self.tables = {table[0]: {} for table in self.cursor.fetchall()}
-        for table in self.tables.keys():
-            self.cursor.execute(f"PRAGMA table_info({table});")
-            self.tables[table] = {info[1]: info[2] for info in self.cursor.fetchall()}
+        self.logger.info("* Creating tables...")
+        try:
+            with open("database/database_schema.sql", "r") as _schema:
+                self.cursor.executescript(_schema.read())
+            self.connection.commit()
+            self.logger.info("* Tables created...")
+        except sqlite3.Error as e:
+            self.logger.exception(f"Cannot create tables, error {e}...")
+            raise
 
     def _connect_to_database(self):
         """
@@ -58,6 +59,11 @@ class Database(Entity):
             self.connection = sqlite3.connect(self.db)
             self.cursor = self.connection.cursor()
             self.logger.info("* Connection to database initialized...")
+            # Check if database exists
+            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            if not self.cursor.fetchall():
+                self.logger.warning("Database not exists, creating tables...")
+                self._create_tables()
         except sqlite3.Error as e:
             self.logger.exception(f"Cannot connect to database {self.db}, error {e}...")
             raise

@@ -1,6 +1,6 @@
 import logging
 from tkinter import messagebox
-from lang import LANG
+from language import LANG
 
 
 class Entity:
@@ -38,19 +38,20 @@ TICKET_WINDOW_CONFIG = {
 
 TICKET_WINDOW_LAYOUT = [
     [
-        '--',
+        'date',
         [
-            ("date", 0)
+            ("date_creation", 0),
+            ("date_modification", 1)
         ],
         0  # row
     ],
     [
         'customer',
         [
-            ("firstname", 0),
-            ("error_firstname_label", 1),
-            ("lastname", 2),
-            ("error_lastname_label", 3),
+            ("first_name", 0),
+            ("error_first_name_label", 1),
+            ("last_name", 2),
+            ("error_last_name_label", 3),
             ("phone", 4),
             ("error_phone_label", 5),
             ("email", 6),
@@ -61,14 +62,14 @@ TICKET_WINDOW_LAYOUT = [
     [
         'car',
         [
-            ("brandname", 0),
-            ("error_brandname_label", 1),
-            ("modelname", 2),
-            ("error_modelname_label", 3),
+            ("brand_name", 0),
+            ("error_brand_name_label", 1),
+            ("model_name", 2),
+            ("error_model_name_label", 3),
             ("year", 4),
             ("error_year_label", 5),
-            ("colorname", 6),
-            ("error_colorname_label", 7),
+            ("color_name", 6),
+            ("error_color_name_label", 7),
             ("vin", 8),
             ("error_vin_label", 9),
         ],
@@ -87,15 +88,16 @@ TICKET_WINDOW_LAYOUT_JSON = [
     {
         "label": "--",
         "fields": [
-            {"name": "date", "position": 0}
+            {"name": "date_creation", "position": 0},
+            {"name": "date_modification", "position": 1}
         ],
         "row": 0
     },
     {
         "label": "customer",
         "fields": [
-            {"name": "firstname", "position": 0},
-            {"name": "lastname", "position": 1},
+            {"name": "first_name", "position": 0},
+            {"name": "last_name", "position": 1},
             {"name": "phone", "position": 2},
             {"name": "email", "position": 3}
         ],
@@ -104,10 +106,10 @@ TICKET_WINDOW_LAYOUT_JSON = [
     {
         "label": "car",
         "fields": [
-            {"name": "brandname", "position": 0},
-            {"name": "modelname", "position": 1},
+            {"name": "brand_name", "position": 0},
+            {"name": "model_name", "position": 1},
             {"name": "year", "position": 2},
-            {"name": "colorname", "position": 3},
+            {"name": "color_name", "position": 3},
             {"name": "vin", "position": 4}
         ],
         "row": 2
@@ -117,14 +119,24 @@ TICKET_WINDOW_LAYOUT_JSON = [
 
 TICKET_WINDOW_EVENT_BINDINGS = ['<Button-1>', '<Enter>', '<Tab>']
 
+EDIT_TICKET_WINDOW_CONFIG = {
+    'title': 'edit_ticket',
+    'resizable': (True, True),
+    'ticket_date_state': 'disable',
+    'window_size': '270x750',
+    # 'icon': 'icons/ticket.ico',
+    # 'bg': '#f0f0f0',
+    # 'font': ('Arial', 10)
+}
+
 EDIT_CUSTOMER_WINDOW_LAYOUT = [
     [
         'customer',
         [
-            ("firstname", 0),
-            ("error_firstname_label", 1),
-            ("lastname", 2),
-            ("error_lastname_label", 3),
+            ("first_name", 0),
+            ("error_first_name_label", 1),
+            ("last_name", 2),
+            ("error_last_name_label", 3),
             ("phone", 4),
             ("error_phone_label", 5),
             ("email", 6),
@@ -154,14 +166,14 @@ EDIT_CAR_WINDOW_LAYOUT = [
     [
         'car',
         [
-            ("brandname", 0),
-            ("error_brandname_label", 1),
-            ("modelname", 2),
-            ("error_modelname_label", 3),
+            ("brand_name", 0),
+            ("error_brand_name_label", 1),
+            ("model_name", 2),
+            ("error_model_name_label", 3),
             ("year", 4),
             ("error_year_label", 5),
-            ("colorname", 6),
-            ("error_colorname_label", 7),
+            ("color_name", 6),
+            ("error_color_name_label", 7),
             ("vin", 8),
             ("error_vin_label", 9),
         ],
@@ -188,6 +200,11 @@ EDIT_CAR_WINDOW_CONFIG = {
 WINDOWS_SETTINGS = {
     'ticket_window': {
         'config': TICKET_WINDOW_CONFIG,
+        'layout': TICKET_WINDOW_LAYOUT,
+        'event_bindings': TICKET_WINDOW_EVENT_BINDINGS
+    },
+    'edit_ticket_window': {
+        'config': EDIT_TICKET_WINDOW_CONFIG,
         'layout': TICKET_WINDOW_LAYOUT,
         'event_bindings': TICKET_WINDOW_EVENT_BINDINGS
     },

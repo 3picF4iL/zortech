@@ -1,4 +1,5 @@
 .idea/
 __pycache__/
-zortech_sqlite.db
+database/zortech_sqlite.db
 zortechapp.log
+test.py
