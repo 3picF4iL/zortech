@@ -344,7 +344,6 @@ class TicketTreeview(Treeview):
         ticket_id = self.treeview.item(self.treeview.selection())["values"][0]
         if ticket_id:
             current_ticket_status = self.database.get_item_from_id('tickets', ticket_id, columns='status')
-            print(current_ticket_status)
             if bool(current_ticket_status['status']):
                 status = 0
 
@@ -412,7 +411,8 @@ class NewTicketWindow(DataWindow):
         data = self.get_data_from_entries()
         if not data:
             return
-
+        # Set ticket status to 1 as it is not processed yet
+        status = 1
         customer = Customer({
             'first_name': data.get('first_name', '').lower(),
             'last_name': data.get('last_name', '').lower(),
@@ -437,7 +437,7 @@ class NewTicketWindow(DataWindow):
             'date_creation': data.get('date_creation'),
             'date_modification': data.get('date_modification'),
             'notes': data.get('notes', ''),
-            'status': data.get('status', '')
+            'status': status,
         }, self.database)
         ticket.add()
 
@@ -525,7 +525,8 @@ class EditTicketWindow(DataWindow):
             'car_id': car.get_id(),
             'date_creation': data.get('date_creation'),
             'date_modification': data.get('date_modification'),
-            'notes': data.get('notes', '')
+            'notes': data.get('notes', ''),
+            'status': data.get('status')
         }, self.database)
         ticket.update()
 
