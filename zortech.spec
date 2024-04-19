@@ -3,10 +3,7 @@ block_cipher = None
 a = Analysis(['main.py'],
              pathex=['.'],
              binaries=[],
-             datas=[
-                 ('database/*.sql', 'database'),
-                 ('database/*.py', 'database')
-             ],
+             datas=[('database/*.sql', 'database')],
              hiddenimports=[],
              hookspath=[],
              runtime_hooks=[],
@@ -18,7 +15,7 @@ a = Analysis(['main.py'],
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(pyz, a.scripts, a.binaries, a.zipfiles, a.datas,
-          name='ZORTECH', debug=False, bootloader_ignore_signals=False,
-          strip=False, upx=True, console=True )
+          name='zortech', debug=False, bootloader_ignore_signals=False,
+          strip=False, upx=True, console=True, one_dir=True)
 coll = COLLECT(exe, a.binaries, a.zipfiles, a.datas,
-               strip=False, upx=True, name='ZORTECH')
+               strip=False, upx=True, name='zortech')
