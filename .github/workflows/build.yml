@@ -40,5 +40,5 @@ jobs:
     - name: Upload executable
       uses: actions/upload-artifact@v2
       with:
-        name: {{ env.FILENAME }}.exe
+        name: ${{ env.FILENAME }}.exe
         path: dist/${{ env.FILENAME }}.exe
