@@ -1,3 +1,4 @@
+import os
 import inspect
 from database.database import Database
 from misc import Entity
@@ -11,7 +12,7 @@ Links between the database and the application
 class DBProcessor(Entity):
     def __init__(self):
         super().__init__()
-        self.database_name = "database/zortech_sqlite.db"
+        self.database_name = "zortech_database.db"
         self.database = Database(self.database_name)
 
         self.static_values = None
