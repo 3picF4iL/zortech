@@ -5,7 +5,7 @@ from misc import Logger
 Logger.setup_logging()
 
 
-class MainApplication:
+class ZortechApp:
     def __init__(self):
         # Create main window (layout/GUI)
         # Connect to database and fetch data
@@ -16,5 +16,4 @@ class MainApplication:
 
 
 if __name__ == '__main__':
-    main = MainApplication()
-
+    main = ZortechApp()
