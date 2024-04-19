@@ -131,7 +131,8 @@ class DBProcessor(Entity):
         query = {
             'tickets': """
                 SELECT tickets.id, tickets.date_creation,
-                customers.first_name || ' - ' || customers.last_name || ' - ' || customers.phone, 
+                CASE WHEN customers.first_name IS NOT NULL AND TRIM(customers.first_name) <> '' THEN customers.first_name
+                || ' - ' || customers.last_name ELSE customers.last_name END || ' - ' || customers.phone,
                 brands.name || CASE WHEN models.name IS NOT NULL THEN ' - ' || models.name ELSE '' END, tickets.notes,
                 tickets.status
                 FROM tickets 
