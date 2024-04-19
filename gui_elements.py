@@ -238,105 +238,84 @@ class DataWindow(Entity):
     # ===================================================
     # Data validation
     # ===================================================
-
-    def _validate_data(self):
-        rc = True
+    def validate(self, value, entry):
+        """
+        Validate entry value.
+        If entry is optional and is empty, treat it as correct
+        If entry is out of two lists it should not be validated so return True
+        :param value:
+        :param entry:
+        :return: bool (True, False) as a _validate(value, entry) result
+        """
         self.logger.info('* Validating data')
         necessary_entries = ['last_name', 'phone', 'brand_name']
         optional_entries = ['vin', 'year', 'email']
-        for entry in self.entries:
-            if entry in necessary_entries:
-                self.logger.debug('\tValidating necessary entry: {}'.format(entry))
-                if not self.entries[entry].get():
-                    self._data_empty(entry)
-                    rc = False
-                else:
-                    rc = self._validate(self.entries[entry])
-            elif entry in optional_entries:
-                self.logger.debug('\tValidating optional entry: {}'.format(entry))
-                if self.entries[entry].get():
-                    rc = self._validate(self.entries[entry])
 
-        return rc
+        self.logger.debug(f'\tValidating entry \'{entry}\' with value \'{value}\'')
 
-        # if entry in optional_entries and self.entries[entry].get() != '':
-        #     if self.entries[entry].get():
-        #         self._validate_optional(self.entries[entry])
-
-    @staticmethod
-    def _clean_placeholder(entry, event, cc=False):
-        """
-        Clean placeholder text from entry
-        :param entry:  Entry to clean
-        :param cc:  Clean color only
-        :param event:
-        :return: None
-        """
-        if not cc:
-            entry.delete(0, 'end')
-        entry.config(foreground='black')
-        entry.unbind('<Button-1>')
-
-    def _data_empty(self, entry):
-        self._data_invalid(entry, self._lang('field_required'))
-
-    def _validate(self, entry):
-        _type = {
-            'vin': {
-                'error': 'vin_invalid',
-                'regex': r'^[A-HJ-NPR-Z0-9]{17}$'
-            },
-            'email': {
-                'error': 'email_invalid',
-                'regex': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-            },
-            'year': {
-                'error': 'year_invalid',
-                'regex': r'^[0-9]{4}$'
-            },
-            'phone': {
-                'error': 'phone_invalid',
-                'regex': r'^[0-9]{9}$'
-            },
-            'brand_name': {
-                'error': 'brand_invalid',
-                'regex': r'^[a-zA-Z0-9 ]+$'
-            },
-            'last_name': {
-                'error': 'last_name_invalid',
-                'regex': r'^[a-zA-Z0-9 ]+$'
-            },
-        }
-
-        # Entry is an object of type Entry, Entry is the value of the self.entries dict, we need to get the key
-        entry_key = list(self.entries.keys())[list(self.entries.values()).index(entry)]
-        if not re.match(_type[entry_key]['regex'], entry.get()):
-            self._data_invalid(entry_key, _type[entry_key]['error'])
-            return False
-        else:
+        if entry not in necessary_entries + optional_entries:
             return True
 
-    def _data_invalid(self, e, error):
-        str_entry = f'error_{e}_label'
-        label = self.error_labels[str_entry]
-        label.config(text=self._lang(error))
+        if entry in optional_entries and (not value or value == ''):
+            return True
+
+        return self._validate(value, entry)
+
+    def _validate(self, value, entry):
+        """
+        Validate value under entry pattern
+        :param value: entry value
+        :param entry: entry name
+        :return: bool
+        """
+        # TODO: Move requirements to config file
+        _type = {
+            'vin': r'^[A-HJ-NPR-Z0-9]{17}$',
+            'email': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+            'year': r'^[0-9]{4}$',
+            'phone': r'^[0-9]{9}$',
+            'brand_name': r'^[a-zA-Z0-9 ]+$',
+            'last_name': r'^[a-zA-Z]{2,}$'
+        }
+
+        if not re.match(_type[entry], value):
+            return self._set_data_invalid_msg(entry)
+
+        self._set_data_invalid_msg(entry, clear=True)
+        return True
+
+    def _set_data_invalid_msg(self, entry, clear=False):
+        """
+        Set 'red' alert near entry field, or remove text
+        :param entry: Entry where info should appear (or be cleaned)
+        :param clear: bool, If True -> clean instead of placing error msg
+        :return: None
+        """
+        str_entry = f'error_{entry}_label'
+        text = '' if clear else self._lang(f'{entry}_invalid')
+        self.error_labels[str_entry].config(text=text)
 
     # ===================================================
     # Data Validation END
     # ===================================================
 
     def get_data_from_entries(self):
+        """
+        Collect data from entries and validate them
+        :return: Data if it is correct, None if some of them are invalid
+        """
+        passed = True
         self.logger.info('* Getting data from entries')
         data = {}
         text_box = [tk.Entry, ttk.Combobox]
-        if self._validate_data():
-            for entry in self.entries:
-                data[entry] = self.entries[entry].get() if type(self.entries[entry]) in text_box else \
-                    self.entries[entry].get('1.0', 'end-1c')
-            return data
-        else:
-            self.logger.warning('Data validation failed')
-            return None
+        for entry in self.entries:
+            value = self.entries[entry].get() if type(self.entries[entry]) in text_box else \
+                self.entries[entry].get('1.0', 'end-1c')
+            # Validate value
+            if not self.validate(value, entry):
+                passed = False
+            data[entry] = value
+        return data if passed else None
 
     def save_data(self):
         pass
@@ -483,6 +462,9 @@ class EditTicketWindow(DataWindow):
     def _read_ticket_data(self):
         # TODO: This should be moved and refactored
         self.data = self.database.get_item_from_id('tickets', self.ticket)
+        if not self.data:
+            self.logger.warning(f'Gathering data failed, empty dict')
+            return
         ticket = TicketDAO(self.data, self.database)
         self.customer = CustomerDAO(self.data, self.database)
         self.car = CarDAO(self.data, self.database)
@@ -584,6 +566,9 @@ class EditCustomerWindow(DataWindow):
     def _read_customer_data(self):
         self.logger.info(f'* Read customer data with customer ID: {self.customer_id}')
         customer_data = self.database.get_item_from_id('customers', self.customer_id)
+        if not customer_data:
+            self.logger.warning(f'Gathering data failed, empty dict')
+            return
         self.logger.debug(f"Customer data: {customer_data}")
         self.entries['first_name'].insert(0, customer_data['first_name'].capitalize())
         self.entries['last_name'].insert(0, customer_data['last_name'].capitalize())
@@ -594,11 +579,8 @@ class EditCustomerWindow(DataWindow):
 
     def save_data(self):
         data = self.get_data_from_entries()
-
-        if not self._validate_data():
-            self.logger.warning('Data validation failed')
+        if not data:
             return
-        self.logger.debug(f"Data from entries: {data}")
 
         # Update customer data
         customer = {
@@ -626,7 +608,9 @@ class EditCarWindow(DataWindow):
     def _read_car_data(self):
         self.logger.info(f'* Reading data for car with ID: {self.car_id}')
         car_data = self.database.get_item_from_id('cars', self.car_id)
-
+        if not self.car_data:
+            self.logger.warning(f'Gathering data failed, empty dict')
+            return
         self.entries['brand_name'].insert(0, self.database.get_item_from_id('brands',
                                                                             car_data['brand_id']
                                                                             )['name'].upper())
@@ -648,9 +632,7 @@ class EditCarWindow(DataWindow):
 
     def save_data(self):
         data = self.get_data_from_entries()
-        self.logger.debug(f"Data from entries: {data}")
-        if not self._validate_data():
-            self.logger.warning('Data validation failed')
+        if not data:
             return
 
         # Update car data
