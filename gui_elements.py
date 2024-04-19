@@ -350,12 +350,11 @@ class TicketTreeview(Treeview):
             EditTicketWindow(self.parent, ticket_id)
 
     def change_status(self, event=None):
-        status = 1
+
         ticket_id = self.treeview.item(self.treeview.selection())["values"][0]
         if ticket_id:
             current_ticket_status = self.database.get_item_from_id('tickets', ticket_id, columns='status')
-            if bool(current_ticket_status['status']):
-                status = 0
+            status = 0 if bool(current_ticket_status['status']) else 1
 
             self.database.update_ticket({'id': ticket_id, 'status': status})
         self.populate_treeview()
@@ -619,7 +618,7 @@ class EditCarWindow(DataWindow):
     def _read_car_data(self):
         self.logger.info(f'* Reading data for car with ID: {self.car_id}')
         car_data = self.database.get_item_from_id('cars', self.car_id)
-        if not self.car_data:
+        if not car_data:
             self.logger.warning(f'Gathering data failed, empty dict')
             return
         self.entries['brand_name'].insert(0, self.database.get_item_from_id('brands',
