@@ -93,29 +93,6 @@ class Car(_Object):
         self.database.update_car(data)
 
 
-class Model(_Object):
-    def __init__(self, data, db):
-        self.brand_id = None
-        self.name = None
-        super().__init__(data, db)
-
-
-class Brand(_Object):
-    def __init__(self, data, db):
-        self.name = None
-        super().__init__(data, db)
-
-
-class Color(_Object):
-    def __init__(self, data, db):
-        self.name = None
-        super().__init__(data, db)
-
-    def exists(self):
-        color_id = self.database.get_item_from_name('colors', self.name)
-        return color_id
-
-
 class Customer(_Object):
     def __init__(self, data, db):
         self._object_name = 'customer'
