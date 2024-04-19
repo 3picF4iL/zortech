@@ -4,6 +4,7 @@ from misc import Entity
 class _Object(Entity):
     def __init__(self, data, db):
         super().__init__()
+        self._object_name = ""
         self._id = None
         self.data = data
         self.database = db
@@ -50,6 +51,7 @@ class _Object(Entity):
 
 class Car(_Object):
     def __init__(self, data, db):
+        self._object_name = 'car'
         self.customer_id = None
         self.brand_id = None
         self.model_id = None
@@ -116,6 +118,7 @@ class Color(_Object):
 
 class Customer(_Object):
     def __init__(self, data, db):
+        self._object_name = 'customer'
         self.first_name = None
         self.last_name = None
         self.phone = None
@@ -155,6 +158,7 @@ class Customer(_Object):
 
 class Ticket(_Object):
     def __init__(self, data, db):
+        self._object_name = 'ticket'
         self.customer_id = None
         self.car_id = None
         self.date_creation = None
