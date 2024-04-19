@@ -163,8 +163,9 @@ class Ticket(_Object):
         self.database.update_ticket(data)
 
 
-class DAO:
+class DAO(Entity):
     def __init__(self):
+        super().__init__()
         self._id = None
         self.database = None
 
@@ -178,10 +179,9 @@ class DAO:
             self._id = value
 
 
-class TicketDAO(Entity, DAO):
+class TicketDAO(DAO):
     def __init__(self, data, db):
-        DAO.__init__(self)
-        Entity.__init__(self)
+        super().__init__()
         self.database = db
         self.id = data.get('id')
         self.date_creation = data.get('date_creation')
@@ -192,10 +192,9 @@ class TicketDAO(Entity, DAO):
         self.status = data.get('status')
 
 
-class CustomerDAO(Entity, DAO):
+class CustomerDAO(DAO):
     def __init__(self, data, db):
-        DAO.__init__(self)
-        Entity.__init__(self)
+        super().__init__()
         self.database = db
         self.id = data.get('customer_id')
         self.car_id = data.get('car_id')
@@ -206,10 +205,9 @@ class CustomerDAO(Entity, DAO):
         self.collected_data = self.database.get_item_from_id('customers', self._id)
 
 
-class CarDAO(Entity, DAO):
+class CarDAO(DAO):
     def __init__(self, data, db):
-        DAO.__init__(self)
-        Entity.__init__(self)
+        super().__init__()
         self.database = db
         self.id = data.get('car_id')
         self.collected_data = None
