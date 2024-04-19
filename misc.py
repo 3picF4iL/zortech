@@ -84,39 +84,6 @@ TICKET_WINDOW_LAYOUT = [
     ]
 ]
 
-TICKET_WINDOW_LAYOUT_JSON = [
-    {
-        "label": "--",
-        "fields": [
-            {"name": "date_creation", "position": 0},
-            {"name": "date_modification", "position": 1}
-        ],
-        "row": 0
-    },
-    {
-        "label": "customer",
-        "fields": [
-            {"name": "first_name", "position": 0},
-            {"name": "last_name", "position": 1},
-            {"name": "phone", "position": 2},
-            {"name": "email", "position": 3}
-        ],
-        "row": 1
-    },
-    {
-        "label": "car",
-        "fields": [
-            {"name": "brand_name", "position": 0},
-            {"name": "model_name", "position": 1},
-            {"name": "year", "position": 2},
-            {"name": "color_name", "position": 3},
-            {"name": "vin", "position": 4}
-        ],
-        "row": 2
-    },
-
-]
-
 TICKET_WINDOW_EVENT_BINDINGS = ['<Button-1>', '<Enter>', '<Tab>']
 
 EDIT_TICKET_WINDOW_CONFIG = {
