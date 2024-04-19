@@ -11,6 +11,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      FILENAME: "ZORTECH"
 
     steps:
     - uses: actions/checkout@v2
@@ -24,10 +26,19 @@ jobs:
       run: pip install pyinstaller
 
     - name: Build executable
-      run: pyinstaller --onefile main.py
+      run: pyinstaller --onefile --name ${{ env.FILENAME }} main.py
+      shell: cmd
+
+    - name: Check if executable was created
+      run: |
+        if not exist .\dist\${{ env.FILENAME }}.exe (
+          echo "Executable file not found."
+          exit 1
+        )
+      shell: cmd
 
     - name: Upload executable
       uses: actions/upload-artifact@v2
       with:
         name: windows-executable
-        path: dist/zortech.exe
+        path: dist/${{ env.FILENAME }}.exe
