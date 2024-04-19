@@ -46,5 +46,5 @@ jobs:
     - name: Upload the full package
       uses: actions/upload-artifact@v2
       with:
-        name: full-package
+        name: ${{ env.FILENAME }}-full.zip
         path: dist/${{ env.FILENAME }}-full.zip
