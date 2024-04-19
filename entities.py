@@ -32,7 +32,6 @@ class _Object(Entity):
                 setattr(self, name, value)
 
     def setup_values(self):
-        print(self.data.items)
         for key, value in self.data.items():
             self._setattr(key, value)
 
@@ -141,6 +140,7 @@ class Ticket(_Object):
         self.date_creation = None
         self.date_modification = None
         self.notes = None
+        self.status = None
         super().__init__(data, db)
 
     def gen_data(self):
@@ -149,7 +149,8 @@ class Ticket(_Object):
             'car_id': self.car_id,
             'date_creation': self.date_creation,
             'date_modification': self.date_modification,
-            'notes': self.notes
+            'notes': self.notes,
+            'status': self.status
         }
 
     def add(self):
@@ -188,6 +189,7 @@ class TicketDAO(Entity, DAO):
         self.customer_id = data.get('customer_id')
         self.car_id = data.get('car_id')
         self.notes = data.get('notes')
+        self.status = data.get('status')
 
 
 class CustomerDAO(Entity, DAO):
