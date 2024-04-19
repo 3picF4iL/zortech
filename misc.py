@@ -13,6 +13,14 @@ class Entity:
         return LANG[self.app_lang].get(expression, expression)
 
 
+def custom_sort_key(x):
+    item = x[0]
+    if item.isdigit():
+        return 0, int(item)
+    else:
+        return 1, item.lower()
+
+
 APP_CONFIG = {
     "version": "0.1",
     "author": "ZORTECH",

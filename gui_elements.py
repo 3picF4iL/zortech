@@ -2,7 +2,8 @@ from misc import (
     Entity,
     WINDOWS_SETTINGS,
     Logger,
-    popup)
+    popup,
+    custom_sort_key)
 import datetime
 import tkinter as tk
 import re
@@ -62,7 +63,7 @@ class Treeview(Entity):
 
     def _sort_treeview_column(self, treeview, column, reverse):
         column_contents = [(treeview.set(k, column), k) for k in treeview.get_children('')]
-        column_contents.sort(key=lambda x: (x[0].isdigit() and int(x[0]) or x[0].lower()), reverse=reverse)
+        column_contents.sort(key=custom_sort_key, reverse=reverse)
 
         for index, (val, k) in enumerate(column_contents):
             treeview.move(k, '', index)
@@ -107,7 +108,9 @@ class Treeview(Entity):
                 self.treeview.selection_set(row_id)
                 self.menu.entryconfig(self._lang('delete'), command=lambda: self.delete_row(), state=button_state)
                 self.menu.entryconfig(self._lang('edit'), command=lambda: self.edit_row(), state=button_state)
-                self.menu.entryconfig(self._lang('change_status'), command=lambda: self.change_status(), state=button_state)
+                self.menu.entryconfig(self._lang('change_status'),
+                                      command=lambda: self.change_status(),
+                                      state=button_state)
                 self.menu.post(event.x_root, event.y_root)
         finally:
             self.menu.grab_release()
@@ -218,7 +221,7 @@ class DataWindow(Entity):
         if entry:
             self.entries[field[0]] = entry
 
-    def _update_models(self, event=None):
+    def _update_models(self):
         self.logger.debug("Update models")
         self.entries['model_name'].set('')
         brand = self.entries['brand_name'].get().lower()
@@ -365,9 +368,9 @@ class CustomerTreeview(Treeview):
         super().__init__(tab, column, name, parent)
 
     def edit_row(self, event=None):
-        self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
         selected_item = self.treeview.selection()
         if selected_item:
+            self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
             self.logger.debug(f"\t\tSelected item: {selected_item}")
             self.logger.debug(f"\t\tEditing item {selected_item}...")
             customer_id = self.treeview.item(selected_item)["values"][0]
@@ -380,9 +383,9 @@ class CarTreeview(Treeview):
         super().__init__(tab, column, name, parent)
 
     def edit_row(self, event=None):
-        self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
         selected_item = self.treeview.selection()
         if selected_item:
+            self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
             self.logger.debug(f"\t\tSelected item: {selected_item}")
             self.logger.debug(f"\t\tEditing item {selected_item}...")
             car_id = self.treeview.item(selected_item)["values"][0]
@@ -659,4 +662,3 @@ class EditCarWindow(DataWindow):
         self.quit_window()
         self.parent.update_treeviews()
         popup('info', 'Success', self._lang(f'Car {self.car_id} updated'))
-
