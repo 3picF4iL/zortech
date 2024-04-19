@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: windows-latest
     env:
-      FILENAME: "ZORTECH"
+      FILENAME: "zortech"
 
     steps:
     - name: Checkout repository
@@ -32,14 +32,19 @@ jobs:
 
     - name: Check if executable was created
       run: |
-        if not exist .\dist\zortech\${{ env.FILENAME }}.exe (
+        if not exist .\dist\${{ env.FILENAME }}\${{ env.FILENAME }}.exe (
           echo "Executable file not found."
           exit 1
         )
       shell: cmd
 
-    - name: Upload executable
+    - name: Create archive of the application and database
+      run: |
+        cd dist/${{ env.FILENAME }}
+        7z a -r ../${{ env.FILENAME }}-full.zip ./${{ env.FILENAME }}.exe ./_internal/database/
+
+    - name: Upload the full package
       uses: actions/upload-artifact@v2
       with:
-        name: ${{ env.FILENAME }}.exe
-        path: dist/zortech/${{ env.FILENAME }}.exe
+        name: full-package
+        path: dist/${{ env.FILENAME }}-full.zip
