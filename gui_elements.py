@@ -39,7 +39,8 @@ class Treeview(Entity):
                 self.treeview.column(column, width=30, anchor=tk.W, stretch=tk.NO)
             else:
                 self.treeview.column(column, width=10, anchor=tk.CENTER)
-            self.treeview.heading(column, text=self._lang(column), anchor=tk.CENTER)
+            self.treeview.heading(column, text=self._lang(column), anchor=tk.CENTER,
+                                  command=lambda _col=column: self._sort_treeview_column(self.treeview, _col, False))
 
     def _init_treeview_scrollbar(self):
         self.logger.debug("\tInitializing treeview scrollbar...")
@@ -58,6 +59,15 @@ class Treeview(Entity):
         self.treeview.bind('<Button-2>', self.on_right_click)
         self.treeview.bind('<Control-Button-1>', self.on_right_click)
         self.treeview.bind('<Double-Button-1>', self.edit_row)
+
+    def _sort_treeview_column(self, treeview, column, reverse):
+        column_contents = [(treeview.set(k, column), k) for k in treeview.get_children('')]
+        column_contents.sort(key=lambda x: (x[0].isdigit() and int(x[0]) or x[0].lower()), reverse=reverse)
+
+        for index, (val, k) in enumerate(column_contents):
+            treeview.move(k, '', index)
+
+        treeview.heading(column, command=lambda: self._sort_treeview_column(treeview, column, not reverse))
 
     def populate_treeview(self):
         # FIXME: Refactor this function it is ugly
@@ -330,9 +340,9 @@ class TicketTreeview(Treeview):
         super().__init__(tab, column, name, parent)
 
     def edit_row(self, event=None):
-        self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
         selected_item = self.treeview.selection()
         if selected_item:
+            self.logger.debug(f"\tEditing row {self.treeview.selection()}...")
             self.logger.debug(f"\t\tSelected item: {selected_item}")
             self.logger.debug(f"\t\tEditing item {selected_item}...")
             ticket_id = self.treeview.item(selected_item)["values"][0]
