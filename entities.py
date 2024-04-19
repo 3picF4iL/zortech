@@ -162,17 +162,10 @@ class Ticket(_Object):
         self.database.update_ticket(data)
 
 
-class TicketDAO(Entity):
-    def __init__(self, data, db):
-        super().__init__()
+class DAO:
+    def __init__(self):
         self._id = None
-        self.database = db
-        self.id = data.get('id')
-        self.date_creation = data.get('date_creation')
-        self.date_modification = data.get('date_modification')
-        self.customer_id = data.get('customer_id')
-        self.car_id = data.get('car_id')
-        self.notes = data.get('notes')
+        self.database = None
 
     @property
     def id(self):
@@ -184,10 +177,23 @@ class TicketDAO(Entity):
             self._id = value
 
 
-class CustomerDAO(Entity):
+class TicketDAO(Entity, DAO):
     def __init__(self, data, db):
-        super().__init__()
-        self._id = None
+        DAO.__init__(self)
+        Entity.__init__(self)
+        self.database = db
+        self.id = data.get('id')
+        self.date_creation = data.get('date_creation')
+        self.date_modification = data.get('date_modification')
+        self.customer_id = data.get('customer_id')
+        self.car_id = data.get('car_id')
+        self.notes = data.get('notes')
+
+
+class CustomerDAO(Entity, DAO):
+    def __init__(self, data, db):
+        DAO.__init__(self)
+        Entity.__init__(self)
         self.database = db
         self.id = data.get('customer_id')
         self.car_id = data.get('car_id')
@@ -197,23 +203,11 @@ class CustomerDAO(Entity):
     def load_data(self):
         self.collected_data = self.database.get_item_from_id('customers', self._id)
 
-    def print_data(self):
-        print(self.collected_data)
 
-    @property
-    def id(self):
-        return self._id
-
-    @id.setter
-    def id(self, value):
-        if not self._id and value:
-            self._id = value
-
-
-class CarDAO(Entity):
+class CarDAO(Entity, DAO):
     def __init__(self, data, db):
-        super().__init__()
-        self._id = None
+        DAO.__init__(self)
+        Entity.__init__(self)
         self.database = db
         self.id = data.get('car_id')
         self.collected_data = None
@@ -221,15 +215,3 @@ class CarDAO(Entity):
 
     def load_data(self):
         self.collected_data = self.database.get_item_from_id('cars', self._id)
-
-    def print_data(self):
-        print(self.collected_data)
-
-    @property
-    def id(self):
-        return self._id
-
-    @id.setter
-    def id(self, value):
-        if not self._id and value:
-            self._id = value
