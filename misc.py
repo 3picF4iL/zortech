@@ -3,6 +3,7 @@ from tkinter import messagebox
 from language import LANG
 
 
+# FIXME: This file contains different data types, it should be cleaned
 class Entity:
     def __init__(self):
         self.app_config = APP_CONFIG
