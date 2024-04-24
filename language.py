@@ -1,3 +1,4 @@
+# TODO: Sort this file to make it more readable
 LANG = {
     'en': {
         'exit': 'Exit',
